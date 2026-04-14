@@ -1,0 +1,137 @@
+openapi: "3.1.0"
+info:
+  title: Blog Finder API
+  version: "1.0.0"
+
+paths:
+  /similar:
+    get:
+      summary: 類似記事取得
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: 類似記事を探したい対象記事のURL
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+          description: 返却件数（最大20）
+      responses:
+        "200":
+          description: 類似記事一覧
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimilarResponse"
+        "400":
+          description: パラメータ不正
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: INVALID_PARAMS
+                message: "url is required"
+        "422":
+          description: 対象記事URLのフェッチ・パース失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: ARTICLE_FETCH_FAILED
+                message: "failed to fetch article"
+        "503":
+          description: Embedding API呼び出し失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: EMBEDDING_UNAVAILABLE
+                message: "embedding service is unavailable"
+
+components:
+  schemas:
+    SimilarResponse:
+      type: object
+      required:
+        - source
+        - similar_articles
+        - total
+      properties:
+        source:
+          type: object
+          required:
+            - url
+            - title
+          properties:
+            url:
+              type: string
+              format: uri
+              example: "https://example.hatenablog.com/entry/2024/01/01/post1"
+            title:
+              type: string
+              example: "Goで始めるWebAPI開発"
+        similar_articles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Article"
+        total:
+          type: integer
+          example: 4
+
+    Article:
+      type: object
+      required:
+        - url
+        - title
+        - published_at
+        - tags
+        - similarity
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://example.hatenablog.com/entry/2024/02/01/post2"
+        title:
+          type: string
+          example: "GoのHTTPハンドラ設計パターン"
+        published_at:
+          type: string
+          format: date-time
+          example: "2024-02-01T10:00:00+09:00"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["Go", "API"]
+        similarity:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.91
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_PARAMS
+            - ARTICLE_FETCH_FAILED
+            - EMBEDDING_UNAVAILABLE
+        message:
+          type: string
