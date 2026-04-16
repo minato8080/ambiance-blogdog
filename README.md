@@ -36,7 +36,15 @@ docker compose up -d
 ### マイグレーション
 
 ```bash
-docker compose exec app migrate -path ./migrations -database $DATABASE_URL up
+make db-migrate   # 未適用のマイグレーションを適用
+make db-reset     # DBを初期化（全データ削除して再作成）
+make db-rollback  # すべてのマイグレーションをロールバック
+```
+
+デフォルトの接続先は `localhost:5432`。別のDBを使う場合は `DB_URL` を上書きする。
+
+```bash
+make db-reset DB_URL=pgx5://user:pass@host:5432/dbname?sslmode=disable
 ```
 
 ## 環境変数
