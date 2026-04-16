@@ -60,7 +60,7 @@ func toArticle(item *gofeed.Item) *Article {
 		summary = string(runes[:500])
 	}
 
-	var tags []string
+	tags := make([]string, 0, len(item.Categories))
 	for _, c := range item.Categories {
 		tags = append(tags, c)
 	}

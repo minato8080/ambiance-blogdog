@@ -17,7 +17,7 @@ import (
 
 // hatenaBlogHosts はインデックス対象とするはてなブログのホストサフィックス。
 var hatenaBlogHosts = []string{
-	".hatenablog.com",
+	".hatena.blog",
 	".hatenablog.jp",
 	".hateblo.jp",
 	".hatenadiary.com",
@@ -70,11 +70,11 @@ func (d *Discoverer) Run(ctx context.Context) error {
 func (d *Discoverer) buildSources() []string {
 	keyword := nicheKeywords[d.keywordIndex%len(nicheKeywords)]
 	return []string{
-		"https://hatenablog.com/",
-		"https://hatenablog.com/genre/technology?sort=recent",
+		"https://hatena.blog/",
+		"https://hatena.blog/topics/journal?sort=recent",
 		"https://b.hatena.ne.jp/hotentry",
 		"https://b.hatena.ne.jp/entrylist",
-		fmt.Sprintf("https://hatenablog.com/search?q=%s", url.QueryEscape(keyword)),
+		fmt.Sprintf("https://hatena.blog/search?q=%s", url.QueryEscape(keyword)),
 	}
 }
 

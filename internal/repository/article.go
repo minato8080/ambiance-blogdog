@@ -26,6 +26,10 @@ func (r *ArticleRepository) Upsert(ctx context.Context, a *model.Article) error 
 		v := pgvector.NewVector(a.Embedding)
 		vec = &v
 	}
+	tags := a.Tags
+	if tags == nil {
+		tags = []string{}
+	}
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO articles (id, blog_id, url, title, summary, tags, embedding, published_at, indexed_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
@@ -36,7 +40,7 @@ func (r *ArticleRepository) Upsert(ctx context.Context, a *model.Article) error 
 			embedding    = EXCLUDED.embedding,
 			published_at = EXCLUDED.published_at,
 			indexed_at   = NOW()`,
-		a.ID, a.BlogID, a.URL, a.Title, a.Summary, a.Tags, vec, a.PublishedAt,
+		a.ID, a.BlogID, a.URL, a.Title, a.Summary, tags, vec, a.PublishedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("article.Upsert: %w", err)

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	testAPIKey    = "test-api-key"
+	testAPIKey     = "test-api-key"
 	testPlatformID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 )
 
