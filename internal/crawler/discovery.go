@@ -12,6 +12,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/minato8080/ambiance-blogdog/internal/model"
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
+	"github.com/minato8080/ambiance-blogdog/internal/tfidf"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -24,30 +25,50 @@ var hatenaBlogHosts = []string{
 	".hatenadiary.jp",
 }
 
-// nicheKeywords はニッチキーワード検索用リスト。
-var nicheKeywords = []string{
-	"golang", "rust", "kubernetes", "競技プログラミング", "機械学習",
-	"読書", "登山", "DIY", "自作PC", "農業", "写真", "植物",
+// defaultKeywords はDBが空の場合のフォールバック用キーワードリスト。
+var defaultKeywords = []string{
+	"実体験", "ルポルタージュ", "失敗談", "雑記", "後悔", "旅行記", "備忘録",
 }
 
 // Discoverer はフェーズ1: ブログ発見クローラー。
 type Discoverer struct {
 	blogRepo     *repository.BlogRepository
+	articleRepo  *repository.ArticleRepository
 	platformID   string
 	httpClient   *http.Client
 	keywordIndex int
+	keywords     []string
 }
 
-func NewDiscoverer(blogRepo *repository.BlogRepository, platformID string) *Discoverer {
+func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, platformID string) *Discoverer {
 	return &Discoverer{
-		blogRepo:   blogRepo,
-		platformID: platformID,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		blogRepo:    blogRepo,
+		articleRepo: articleRepo,
+		platformID:  platformID,
+		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		keywords:    defaultKeywords,
+	}
+}
+
+// refreshKeywords はインデックス済み記事から TF-IDF でキーワードを更新する。
+// 記事が少ない場合は defaultKeywords を維持する。
+func (d *Discoverer) refreshKeywords(ctx context.Context) {
+	docs, err := d.articleRepo.SampleSummaries(ctx, 500)
+	if err != nil {
+		slog.Warn("discovery: keyword refresh failed", "error", err)
+		return
+	}
+	keywords := tfidf.TopKeywords(docs, 20)
+	if len(keywords) > 0 {
+		d.keywords = keywords
+		d.keywordIndex = d.keywordIndex % len(d.keywords)
+		slog.Info("discovery: keywords refreshed via TF-IDF", "count", len(keywords))
 	}
 }
 
 // Run は全収集元を巡回してブログURLを発見・登録する。
 func (d *Discoverer) Run(ctx context.Context) error {
+	d.refreshKeywords(ctx)
 	sources := d.buildSources()
 	for _, srcURL := range sources {
 		if err := ctx.Err(); err != nil {
@@ -68,13 +89,13 @@ func (d *Discoverer) Run(ctx context.Context) error {
 }
 
 func (d *Discoverer) buildSources() []string {
-	keyword := nicheKeywords[d.keywordIndex%len(nicheKeywords)]
+	keyword := d.keywords[d.keywordIndex%len(d.keywords)]
 	return []string{
 		"https://hatena.blog/",
 		"https://hatena.blog/topics/journal?sort=recent",
 		"https://b.hatena.ne.jp/hotentry",
-		"https://b.hatena.ne.jp/entrylist",
-		fmt.Sprintf("https://hatena.blog/search?q=%s", url.QueryEscape(keyword)),
+		"https://b.hatena.ne.jp/entrylist/all",
+		fmt.Sprintf("https://www.hatena.ne.jp/o/search/top?q=%s", url.QueryEscape(keyword)),
 	}
 }
 
@@ -154,9 +175,13 @@ func extractBlogURL(rawURL string) string {
 			return u.Scheme + "://" + host
 		}
 	}
+	// 独自ドメインのはてなブログ: /entry/ パスパターンで判定
+	if strings.Contains(u.Path, "/entry/") {
+		return u.Scheme + "://" + host
+	}
 	return ""
 }
 
 func (d *Discoverer) rotateKeyword() {
-	d.keywordIndex = (d.keywordIndex + 1) % len(nicheKeywords)
+	d.keywordIndex = (d.keywordIndex + 1) % len(d.keywords)
 }

@@ -68,7 +68,7 @@ func run() error {
 	rssFetcher := rss.NewFetcher()
 
 	// クローラー
-	discoverer := crawler.NewDiscoverer(blogRepo, hatenaPlatformID)
+	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, hatenaPlatformID)
 	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog)
 	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog)
 	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo)

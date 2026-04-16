@@ -49,7 +49,7 @@ Client (埋め込みJS等)
 | 新着エントリー     | `https://hatenablog.com/`                             | 最近更新されたブログ | 低 ◎         |
 | カテゴリ新着       | `https://hatenablog.com/genre/technology?sort=recent` | ジャンル別・時系列   | 低 ◎         |
 | 注目エントリー     | `https://b.hatena.ne.jp/hotentry`                     | ホットエントリ経由   | 高 △         |
-| 低ブクマ記事       | `https://b.hatena.ne.jp/entrylist`                    | ブクマ数問わず時系列 | 低 ◎         |
+| 低ブクマ記事       | `https://b.hatena.ne.jp/entrylist/all`                | ブクマ数問わず時系列 | 低 ◎         |
 | 検索（マイナー語） | `https://hatenablog.com/search?q={keyword}`           | ニッチキーワード指定 | 低 ◎         |
 
 - ホットエントリは補助的に使い、**新着・時系列系を優先**してクロール

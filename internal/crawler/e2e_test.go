@@ -42,8 +42,9 @@ func setupE2EPool(t *testing.T) *pgxpool.Pool {
 func TestDiscoverer_Run(t *testing.T) {
 	pool := setupE2EPool(t)
 	blogRepo := repository.NewBlogRepository(pool)
+	articleRepo := repository.NewArticleRepository(pool)
 
-	d := crawler.NewDiscoverer(blogRepo, hatenaPlatformID)
+	d := crawler.NewDiscoverer(blogRepo, articleRepo, hatenaPlatformID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

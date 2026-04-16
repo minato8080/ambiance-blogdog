@@ -34,6 +34,8 @@ blog-finder/
 │   │   └── scheduler.go              # 3フェーズのスケジューリング管理
 │   ├── rss/
 │   │   └── fetcher.go                # RSSフィード取得・パース
+│   ├── tfidf/
+│   │   └── tfidf.go                  # TF-IDF によるキーワード抽出
 │   ├── embedding/
 │   │   └── openai.go                 # OpenAI Embeddings APIクライアント（並列制限付き）
 │   ├── repository/

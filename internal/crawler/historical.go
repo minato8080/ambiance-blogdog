@@ -36,7 +36,7 @@ func NewHistorical(blogRepo *repository.BlogRepository, platformID string, dateF
 // Run は設定期間内のランダム日付でエントリーリストを取得する。
 func (h *Historical) Run(ctx context.Context) error {
 	date := randomDateBetween(h.dateFrom, h.dateTo)
-	srcURL := fmt.Sprintf("https://b.hatena.ne.jp/entrylist?date=%s", date.Format("20060102"))
+	srcURL := fmt.Sprintf("https://b.hatena.ne.jp/entrylist/all?date=%s", date.Format("20060102"))
 	slog.Info("historical: crawling", "url", srcURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srcURL, nil)

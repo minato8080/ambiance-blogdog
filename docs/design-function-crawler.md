@@ -9,10 +9,12 @@
 ### 処理フロー
 
 ```
-1. 収集元URLリストを順次取得
-2. HTMLをパースし、各ページからブログURLを抽出
-3. blogs テーブルに UPSERT（重複はスキップ、status=pending で登録）
-4. ニッチキーワード検索の場合、次回用にキーワードをローテーション
+1. インデックス済み記事（最大500件）のタイトル+サマリーから TF-IDF でキーワードを更新
+   （記事が10件未満の場合はデフォルトキーワードリストを使用）
+2. 収集元URLリストを順次取得
+3. HTMLをパースし、各ページからブログURLを抽出
+4. blogs テーブルに UPSERT（重複はスキップ、status=pending で登録）
+5. ニッチキーワード検索の場合、次回用にキーワードをローテーション
 ```
 
 ### 収集元ごとの抽出方法
@@ -24,6 +26,15 @@
 | `b.hatena.ne.jp/hotentry`     | `data-entry-url` 属性からブログURLを抽出  |
 | `b.hatena.ne.jp/entrylist`    | 同上                                      |
 | `hatenablog.com/search?q=...` | 記事リンクのホスト部分からブログURLを抽出 |
+
+### ニッチキーワードの動的更新（TF-IDF）
+
+各 `Run()` 実行時に、インデックス済み記事コーパスから TF-IDF スコアが高いキーワードを最大20件計算して検索に使用する。
+これにより、DBに蓄積された記事の傾向に応じてクロール対象が自動的に多様化される。
+
+- コーパスサイズ: 最新記事 500 件（`articles.indexed_at` 降順）
+- トークナイズ: ASCII英数字 / 漢字・カタカナの連続をトークン化（ひらがなは除外）
+- DB が空または記事が10件未満の場合はデフォルトキーワードリストを使用
 
 ### レート制限・エラー処理
 
@@ -69,7 +80,7 @@
 ```go
 // 実行ごとに設定済み期間内からランダムに日付を選択
 date := randomDateBetween(CRAWL_DATE_FROM, CRAWL_DATE_TO)
-url := fmt.Sprintf("https://b.hatena.ne.jp/entrylist?date=%s", date)
+url := fmt.Sprintf("https://b.hatena.ne.jp/entrylist/all?date=%s", date)
 ```
 
 - 実行間隔: **24時間ごと**

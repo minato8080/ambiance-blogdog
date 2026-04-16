@@ -129,6 +129,31 @@ func (r *ArticleRepository) DeleteOldest(ctx context.Context, blogID string) err
 	return nil
 }
 
+// SampleSummaries は最新記事のタイトルとサマリーを結合した文字列を最大 limit 件返す。
+func (r *ArticleRepository) SampleSummaries(ctx context.Context, limit int) ([]string, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT title || ' ' || COALESCE(summary, '')
+		FROM articles
+		ORDER BY indexed_at DESC
+		LIMIT $1`,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("article.SampleSummaries: %w", err)
+	}
+	defer rows.Close()
+
+	var docs []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		docs = append(docs, s)
+	}
+	return docs, rows.Err()
+}
+
 // CountTotal は全記事数を返す。
 func (r *ArticleRepository) CountTotal(ctx context.Context) (int, error) {
 	var count int
