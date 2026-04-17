@@ -87,6 +87,15 @@ func (r *BlogRepository) FindByBlogURL(ctx context.Context, blogURL string) (*mo
 	return b, nil
 }
 
+// Delete はブログとその関連記事を削除する。
+func (r *BlogRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM blogs WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("blog.Delete: %w", err)
+	}
+	return nil
+}
+
 // UpdateStatus は status・error_count・last_synced_at を更新する。
 func (r *BlogRepository) UpdateStatus(ctx context.Context, id string, status model.BlogStatus, errorCount int, lastSyncedAt *time.Time) error {
 	_, err := r.db.Exec(ctx, `

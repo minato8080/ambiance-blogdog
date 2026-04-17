@@ -81,6 +81,13 @@ components:
             title:
               type: string
               example: "Goで始めるWebAPI開発"
+            blog_name:
+              type: string
+              example: "技術ブログ"
+            blog_url:
+              type: string
+              format: uri
+              example: "https://example.hatenablog.com"
         similar_articles:
           type: array
           items:
@@ -105,6 +112,13 @@ components:
         title:
           type: string
           example: "GoのHTTPハンドラ設計パターン"
+        blog_name:
+          type: string
+          example: "技術ブログ"
+        blog_url:
+          type: string
+          format: uri
+          example: "https://example.hatenablog.com"
         published_at:
           type: string
           format: date-time

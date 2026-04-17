@@ -85,12 +85,11 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 	articles, err := ix.rssFetcher.Fetch(ctx, feedURL, ix.maxArticles)
 	if err != nil {
 		blog.ErrorCount++
-		status := model.BlogStatusPending
 		if blog.ErrorCount >= ix.maxErrorCount {
-			status = model.BlogStatusError
-			slog.Warn("indexer: blog marked as error", "blog_url", blog.BlogURL, "error", err)
+			slog.Warn("indexer: blog deleted after max errors", "blog_url", blog.BlogURL, "error", err)
+			return ix.blogRepo.Delete(ctx, blog.ID)
 		}
-		return ix.blogRepo.UpdateStatus(ctx, blog.ID, status, blog.ErrorCount, nil)
+		return ix.blogRepo.UpdateStatus(ctx, blog.ID, model.BlogStatusPending, blog.ErrorCount, nil)
 	}
 
 	for _, a := range articles {

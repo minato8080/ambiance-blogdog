@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	pgvector "github.com/pgvector/pgvector-go"
 	"github.com/minato8080/ambiance-blogdog/internal/model"
+	pgvector "github.com/pgvector/pgvector-go"
 )
 
 type ArticleRepository struct {
@@ -76,12 +76,13 @@ func (r *ArticleRepository) FindByURL(ctx context.Context, url string) (*model.A
 func (r *ArticleRepository) SearchSimilar(ctx context.Context, embedding []float32, excludeURL string, limit int) ([]*model.SimilarArticle, error) {
 	vec := pgvector.NewVector(embedding)
 	rows, err := r.db.Query(ctx, `
-		SELECT url, title, tags, published_at,
-		       1 - (embedding <=> $1) AS similarity
-		FROM articles
-		WHERE url != $2
-		  AND embedding IS NOT NULL
-		ORDER BY embedding <=> $1
+		SELECT a.url, a.title, COALESCE(b.blog_url, ''), COALESCE(b.name, ''), a.tags, a.published_at,
+		       1 - (a.embedding <=> $1) AS similarity
+		FROM articles a
+		LEFT JOIN blogs b ON b.id = a.blog_id
+		WHERE a.url != $2
+		  AND a.embedding IS NOT NULL
+		ORDER BY a.embedding <=> $1
 		LIMIT $3`,
 		vec, excludeURL, limit,
 	)
@@ -93,7 +94,7 @@ func (r *ArticleRepository) SearchSimilar(ctx context.Context, embedding []float
 	var results []*model.SimilarArticle
 	for rows.Next() {
 		s := &model.SimilarArticle{}
-		if err := rows.Scan(&s.URL, &s.Title, &s.Tags, &s.PublishedAt, &s.Similarity); err != nil {
+		if err := rows.Scan(&s.URL, &s.Title, &s.BlogURL, &s.BlogName, &s.Tags, &s.PublishedAt, &s.Similarity); err != nil {
 			return nil, err
 		}
 		results = append(results, s)

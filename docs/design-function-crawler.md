@@ -57,7 +57,7 @@
 
 - 実行間隔: **1時間ごと**（pending ブログを最大50件/回処理）
 - OpenAI API呼び出しは **並列数を制限**（最大5並列）してレート制限を回避
-- RSS取得失敗が3回続いたブログは `status=error` にして一時停止
+- RSS取得失敗が3回続いたブログは `blogs` テーブルから削除（関連記事も CASCADE 削除）
 
 ---
 
@@ -69,7 +69,7 @@
 - 公開日時（`published_at`）の変化でdiff判定
 - 新規・更新記事があればEmbeddingを再生成してUPSERT、`last_synced_at` を更新
 - 記事に変化がなければ `status=ready` のまま、`last_synced_at` のみ更新してスキップ
-- blogステータスは `ready` / `pending` / `indexing` / `error` の4値
+- blogステータスは `ready` / `pending` / `indexing` の3値
 
 ---
 

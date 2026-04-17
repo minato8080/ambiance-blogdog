@@ -90,12 +90,16 @@ func (h *SimilarHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type sourceInfo struct {
-		URL   string `json:"url"`
-		Title string `json:"title"`
+		URL      string `json:"url"`
+		Title    string `json:"title"`
+		BlogURL  string `json:"blog_url,omitempty"`
+		BlogName string `json:"blog_name,omitempty"`
 	}
 	type articleResp struct {
 		URL         string     `json:"url"`
 		Title       string     `json:"title"`
+		BlogURL     string     `json:"blog_url,omitempty"`
+		BlogName    string     `json:"blog_name,omitempty"`
 		PublishedAt *time.Time `json:"published_at,omitempty"`
 		Tags        []string   `json:"tags"`
 		Similarity  float64    `json:"similarity"`
@@ -115,14 +119,27 @@ func (h *SimilarHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		items = append(items, articleResp{
 			URL:         s.URL,
 			Title:       s.Title,
+			BlogURL:     s.BlogURL,
+			BlogName:    s.BlogName,
 			PublishedAt: s.PublishedAt,
 			Tags:        tags,
 			Similarity:  s.Similarity,
 		})
 	}
 
+	sourceBlogURL := extractBlogBaseURL(rawURL)
+	var sourceBlogName string
+	if blog, err := h.blogRepo.FindByBlogURL(r.Context(), sourceBlogURL); err == nil && blog != nil {
+		sourceBlogName = blog.Name
+	}
+
 	writeJSON(w, http.StatusOK, response{
-		Source:          sourceInfo{URL: rawURL, Title: sourceTitle},
+		Source: sourceInfo{
+			URL:      rawURL,
+			Title:    sourceTitle,
+			BlogURL:  sourceBlogURL,
+			BlogName: sourceBlogName,
+		},
 		SimilarArticles: items,
 		Total:           len(items),
 	})

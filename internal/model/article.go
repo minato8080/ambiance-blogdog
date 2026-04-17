@@ -17,6 +17,8 @@ type Article struct {
 type SimilarArticle struct {
 	URL         string
 	Title       string
+	BlogURL     string
+	BlogName    string
 	PublishedAt *time.Time
 	Tags        []string
 	Similarity  float64
