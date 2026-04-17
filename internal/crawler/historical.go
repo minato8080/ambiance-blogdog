@@ -15,30 +15,88 @@ import (
 )
 
 // Historical は時間断面サンプリングクローラー。
+// ブックマーク数ランダム検索と日付範囲ランダム検索の2種類を実行する。
 type Historical struct {
-	blogRepo   *repository.BlogRepository
-	platformID string
-	httpClient *http.Client
-	dateFrom   time.Time
-	dateTo     time.Time
+	blogRepo         *repository.BlogRepository
+	platformID       string
+	httpClient       *http.Client
+	dateFrom         time.Time
+	dateTo           time.Time
+	bookmarkMax      int
+	dateWindowDays   int
+	dateUsersMax     int
 }
 
-func NewHistorical(blogRepo *repository.BlogRepository, platformID string, dateFrom, dateTo time.Time) *Historical {
+func NewHistorical(
+	blogRepo *repository.BlogRepository,
+	platformID string,
+	dateFrom, dateTo time.Time,
+	bookmarkMax, dateWindowDays, dateUsersMax int,
+) *Historical {
 	return &Historical{
-		blogRepo:   blogRepo,
-		platformID: platformID,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		dateFrom:   dateFrom,
-		dateTo:     dateTo,
+		blogRepo:       blogRepo,
+		platformID:     platformID,
+		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		dateFrom:       dateFrom,
+		dateTo:         dateTo,
+		bookmarkMax:    bookmarkMax,
+		dateWindowDays: dateWindowDays,
+		dateUsersMax:   dateUsersMax,
 	}
 }
 
-// Run は設定期間内のランダム日付でエントリーリストを取得する。
+// Run はブックマーク数検索と日付範囲検索を順に実行する。
 func (h *Historical) Run(ctx context.Context) error {
-	date := randomDateBetween(h.dateFrom, h.dateTo)
-	srcURL := fmt.Sprintf("https://b.hatena.ne.jp/entrylist/all?date=%s", date.Format("20060102"))
-	slog.Info("historical: crawling", "url", srcURL)
+	if err := h.crawlByBookmarkCount(ctx); err != nil {
+		slog.Warn("historical: bookmark search failed", "error", err)
+	}
+	// robots.txt 遵守: 1秒以上のインターバル
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(time.Second):
+	}
+	if err := h.crawlByDateRange(ctx); err != nil {
+		slog.Warn("historical: date range search failed", "error", err)
+	}
+	return nil
+}
 
+// crawlByBookmarkCount はランダムなブックマーク数で検索する。
+func (h *Historical) crawlByBookmarkCount(ctx context.Context) error {
+	users := rand.Intn(h.bookmarkMax + 1)
+	srcURL := fmt.Sprintf(
+		"https://b.hatena.ne.jp/q/entry?target=all&sort=recent&users=%d",
+		users,
+	)
+	slog.Info("historical: bookmark count search", "users", users)
+	return h.crawl(ctx, srcURL)
+}
+
+// crawlByDateRange はランダムな日付範囲と低ブックマーク数で検索する。
+func (h *Historical) crawlByDateRange(ctx context.Context) error {
+	maxBegin := h.dateTo.AddDate(0, 0, -h.dateWindowDays)
+	if !maxBegin.After(h.dateFrom) {
+		maxBegin = h.dateFrom
+	}
+	begin := randomDateBetween(h.dateFrom, maxBegin)
+	end := begin.AddDate(0, 0, h.dateWindowDays)
+	users := rand.Intn(h.dateUsersMax + 1)
+	srcURL := fmt.Sprintf(
+		"https://b.hatena.ne.jp/q/entry?target=all&sort=recent&users=%d&safe=on&date_begin=%s&date_end=%s",
+		users,
+		begin.Format("2006-01-02"),
+		end.Format("2006-01-02"),
+	)
+	slog.Info("historical: date range search",
+		"begin", begin.Format("2006-01-02"),
+		"end", end.Format("2006-01-02"),
+		"users", users,
+	)
+	return h.crawl(ctx, srcURL)
+}
+
+func (h *Historical) crawl(ctx context.Context, srcURL string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srcURL, nil)
 	if err != nil {
 		return err
@@ -52,7 +110,7 @@ func (h *Historical) Run(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("historical: HTTP %d for %s", resp.StatusCode, srcURL)
+		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, srcURL)
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)

@@ -32,33 +32,37 @@ var defaultKeywords = []string{
 
 // Discoverer はフェーズ1: ブログ発見クローラー。
 type Discoverer struct {
-	blogRepo     *repository.BlogRepository
-	articleRepo  *repository.ArticleRepository
-	platformID   string
-	httpClient   *http.Client
-	keywordIndex int
-	keywords     []string
+	blogRepo      *repository.BlogRepository
+	articleRepo   *repository.ArticleRepository
+	platformID    string
+	httpClient    *http.Client
+	keywordIndex  int
+	keywords      []string
+	tfidfSample   int
+	tfidfKeywords int
 }
 
-func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, platformID string) *Discoverer {
+func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, platformID string, tfidfSample, tfidfKeywords int) *Discoverer {
 	return &Discoverer{
-		blogRepo:    blogRepo,
-		articleRepo: articleRepo,
-		platformID:  platformID,
-		httpClient:  &http.Client{Timeout: 30 * time.Second},
-		keywords:    defaultKeywords,
+		blogRepo:      blogRepo,
+		articleRepo:   articleRepo,
+		platformID:    platformID,
+		httpClient:    &http.Client{Timeout: 30 * time.Second},
+		keywords:      defaultKeywords,
+		tfidfSample:   tfidfSample,
+		tfidfKeywords: tfidfKeywords,
 	}
 }
 
 // refreshKeywords はインデックス済み記事から TF-IDF でキーワードを更新する。
 // 記事が少ない場合は defaultKeywords を維持する。
 func (d *Discoverer) refreshKeywords(ctx context.Context) {
-	docs, err := d.articleRepo.SampleSummaries(ctx, 500)
+	docs, err := d.articleRepo.SampleSummaries(ctx, d.tfidfSample)
 	if err != nil {
 		slog.Warn("discovery: keyword refresh failed", "error", err)
 		return
 	}
-	keywords := tfidf.TopKeywords(docs, 20)
+	keywords := tfidf.TopKeywords(docs, d.tfidfKeywords)
 	if len(keywords) > 0 {
 		d.keywords = keywords
 		d.keywordIndex = d.keywordIndex % len(d.keywords)

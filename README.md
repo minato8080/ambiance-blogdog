@@ -55,9 +55,10 @@ make db-reset DB_URL=pgx5://user:pass@host:5432/dbname?sslmode=disable
 | `DATABASE_URL`          | —          | PostgreSQL接続文字列                  |
 | `OPENAI_API_KEY`        | —          | OpenAI APIキー                        |
 | `API_KEY`               | —          | 管理系エンドポイントの認証キー        |
-| `CRAWL_INTERVAL_MIN`    | `360`      | ブログ発見クロール間隔（分）          |
-| `SYNC_INTERVAL_MIN`     | `60`       | 記事インデックス更新間隔（分）        |
-| `SYNC_STALENESS_DAYS`   | `30`       | 差分チェック間隔（日）                |
+| `CRAWL_INTERVAL_MIN`      | `360`      | ブログ発見クロール間隔（分）          |
+| `SYNC_INTERVAL_MIN`       | `60`       | 記事インデックス更新間隔（分）        |
+| `HISTORICAL_INTERVAL_MIN` | `1440`     | 時間断面サンプリングクロール間隔（分）|
+| `SYNC_STALENESS_DAYS`     | `30`       | 差分チェック間隔（日）                |
 | `CRAWL_CONCURRENCY`     | `5`        | OpenAI API並列呼び出し数上限          |
 | `MAX_ARTICLES_PER_BLOG` | `5`        | 1ブログあたりのインデックス上限記事数 |
 | `CORS_ALLOWED_ORIGINS`  | `*`        | 許可CORSオリジン（カンマ区切り）      |

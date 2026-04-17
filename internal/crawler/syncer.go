@@ -22,6 +22,8 @@ type Syncer struct {
 	embedClient   *embedding.Client
 	stalenessDays int
 	maxArticles   int
+	batchSize     int
+	maxErrorCount int
 }
 
 func NewSyncer(
@@ -29,7 +31,7 @@ func NewSyncer(
 	articleRepo *repository.ArticleRepository,
 	rssFetcher *rss.Fetcher,
 	embedClient *embedding.Client,
-	stalenessDays, maxArticles int,
+	stalenessDays, maxArticles, batchSize, maxErrorCount int,
 ) *Syncer {
 	return &Syncer{
 		blogRepo:      blogRepo,
@@ -38,22 +40,32 @@ func NewSyncer(
 		embedClient:   embedClient,
 		stalenessDays: stalenessDays,
 		maxArticles:   maxArticles,
+		batchSize:     batchSize,
+		maxErrorCount: maxErrorCount,
 	}
 }
 
 // Run は stale な ready ブログを差分チェックする。
 func (s *Syncer) Run(ctx context.Context) error {
-	blogs, err := s.blogRepo.FindStale(ctx, s.stalenessDays, batchSize)
+	blogs, err := s.blogRepo.FindStale(ctx, s.stalenessDays, s.batchSize)
 	if err != nil {
 		return fmt.Errorf("syncer.Run: %w", err)
 	}
 
-	for _, blog := range blogs {
+	for i, blog := range blogs {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if err := s.syncBlog(ctx, blog); err != nil {
 			slog.Warn("syncer: blog failed", "blog_url", blog.BlogURL, "error", err)
+		}
+		// robots.txt 遵守: ブログ間に1秒以上のインターバル（最後の1件はスキップ）
+		if i < len(blogs)-1 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Second):
+			}
 		}
 	}
 	return nil
@@ -65,7 +77,7 @@ func (s *Syncer) syncBlog(ctx context.Context, blog *model.Blog) error {
 	if err != nil {
 		blog.ErrorCount++
 		status := model.BlogStatusReady
-		if blog.ErrorCount >= maxErrorCount {
+		if blog.ErrorCount >= s.maxErrorCount {
 			status = model.BlogStatusError
 		}
 		return s.blogRepo.UpdateStatus(ctx, blog.ID, status, blog.ErrorCount, blog.LastSyncedAt)

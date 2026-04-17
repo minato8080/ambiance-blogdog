@@ -14,18 +14,15 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-const (
-	batchSize     = 50
-	maxErrorCount = 3
-)
-
 // Indexer はフェーズ2: 記事インデックス構築クローラー。
 type Indexer struct {
-	blogRepo    *repository.BlogRepository
-	articleRepo *repository.ArticleRepository
-	rssFetcher  *rss.Fetcher
-	embedClient *embedding.Client
-	maxArticles int
+	blogRepo      *repository.BlogRepository
+	articleRepo   *repository.ArticleRepository
+	rssFetcher    *rss.Fetcher
+	embedClient   *embedding.Client
+	maxArticles   int
+	batchSize     int
+	maxErrorCount int
 }
 
 func NewIndexer(
@@ -33,30 +30,40 @@ func NewIndexer(
 	articleRepo *repository.ArticleRepository,
 	rssFetcher *rss.Fetcher,
 	embedClient *embedding.Client,
-	maxArticles int,
+	maxArticles, batchSize, maxErrorCount int,
 ) *Indexer {
 	return &Indexer{
-		blogRepo:    blogRepo,
-		articleRepo: articleRepo,
-		rssFetcher:  rssFetcher,
-		embedClient: embedClient,
-		maxArticles: maxArticles,
+		blogRepo:      blogRepo,
+		articleRepo:   articleRepo,
+		rssFetcher:    rssFetcher,
+		embedClient:   embedClient,
+		maxArticles:   maxArticles,
+		batchSize:     batchSize,
+		maxErrorCount: maxErrorCount,
 	}
 }
 
 // Run は pending ブログを最大 batchSize 件処理する。
 func (ix *Indexer) Run(ctx context.Context) error {
-	blogs, err := ix.blogRepo.FindPending(ctx, batchSize)
+	blogs, err := ix.blogRepo.FindPending(ctx, ix.batchSize)
 	if err != nil {
 		return fmt.Errorf("indexer.Run: %w", err)
 	}
 
-	for _, blog := range blogs {
+	for i, blog := range blogs {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if err := ix.indexBlog(ctx, blog); err != nil {
 			slog.Warn("indexer: blog failed", "blog_url", blog.BlogURL, "error", err)
+		}
+		// robots.txt 遵守: ブログ間に1秒以上のインターバル（最後の1件はスキップ）
+		if i < len(blogs)-1 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Second):
+			}
 		}
 	}
 	return nil
@@ -74,7 +81,7 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 	if err != nil {
 		blog.ErrorCount++
 		status := model.BlogStatusPending
-		if blog.ErrorCount >= maxErrorCount {
+		if blog.ErrorCount >= ix.maxErrorCount {
 			status = model.BlogStatusError
 			slog.Warn("indexer: blog marked as error", "blog_url", blog.BlogURL)
 		}

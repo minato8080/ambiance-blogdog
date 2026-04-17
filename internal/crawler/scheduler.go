@@ -8,13 +8,16 @@ import (
 
 // Scheduler は3フェーズ + 時間断面クローラーのスケジューリングを管理する。
 type Scheduler struct {
-	discoverer  *Discoverer
-	indexer     *Indexer
-	syncer      *Syncer
-	historical  *Historical
-	crawlEvery  time.Duration
-	syncEvery   time.Duration
-	staleEvery  time.Duration
+	discoverer      *Discoverer
+	indexer         *Indexer
+	syncer          *Syncer
+	historical      *Historical
+	recent          *Recent
+	crawlEvery      time.Duration
+	syncEvery       time.Duration
+	staleEvery      time.Duration
+	historicalEvery time.Duration
+	recentEvery     time.Duration
 }
 
 func NewScheduler(
@@ -22,16 +25,20 @@ func NewScheduler(
 	indexer *Indexer,
 	syncer *Syncer,
 	historical *Historical,
-	crawlIntervalMin, syncIntervalMin int,
+	recent *Recent,
+	crawlIntervalMin, syncIntervalMin, historicalIntervalMin, recentIntervalMin int,
 ) *Scheduler {
 	return &Scheduler{
-		discoverer: discoverer,
-		indexer:    indexer,
-		syncer:     syncer,
-		historical: historical,
-		crawlEvery: time.Duration(crawlIntervalMin) * time.Minute,
-		syncEvery:  time.Duration(syncIntervalMin) * time.Minute,
-		staleEvery: 24 * time.Hour,
+		discoverer:      discoverer,
+		indexer:         indexer,
+		syncer:          syncer,
+		historical:      historical,
+		recent:          recent,
+		crawlEvery:      time.Duration(crawlIntervalMin) * time.Minute,
+		syncEvery:       time.Duration(syncIntervalMin) * time.Minute,
+		staleEvery:      24 * time.Hour,
+		historicalEvery: time.Duration(historicalIntervalMin) * time.Minute,
+		recentEvery:     time.Duration(recentIntervalMin) * time.Minute,
 	}
 }
 
@@ -40,7 +47,8 @@ func (s *Scheduler) Start(ctx context.Context) {
 	go s.loop(ctx, "discovery", s.crawlEvery, s.discoverer.Run)
 	go s.loop(ctx, "indexer", s.syncEvery, s.indexer.Run)
 	go s.loop(ctx, "syncer", s.staleEvery, s.syncer.Run)
-	go s.loop(ctx, "historical", s.staleEvery, s.historical.Run)
+	go s.loop(ctx, "historical", s.historicalEvery, s.historical.Run)
+	go s.loop(ctx, "recent", s.recentEvery, s.recent.Run)
 }
 
 func (s *Scheduler) loop(ctx context.Context, name string, interval time.Duration, fn func(context.Context) error) {

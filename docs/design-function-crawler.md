@@ -73,15 +73,37 @@
 
 ---
 
+## ブックマーク数0最新クロール
+
+`https://b.hatena.ne.jp/q/entry?target=all&sort=recent&users=0` を定期取得し、まだ注目されていない新着記事のブログを収集する。
+
+- 実行間隔: **`RECENT_INTERVAL_MIN` 分ごと**（デフォルト: 30分）
+- `data-entry-url` 属性からブログURLを抽出して `blogs` テーブルに UPSERT
+
+---
+
 ## 時間断面サンプリング（過去記事カバー）
 
-新着クロールとは別に、過去の任意日付を指定して記事を収集するクロールを並走させる。
+新着クロールとは別に、2種類のランダム検索を並走させてマイナー記事を収集する。
 
-```go
-// 実行ごとに設定済み期間内からランダムに日付を選択
-date := randomDateBetween(CRAWL_DATE_FROM, CRAWL_DATE_TO)
-url := fmt.Sprintf("https://b.hatena.ne.jp/entrylist/all?date=%s", date)
+- 実行間隔: **`HISTORICAL_INTERVAL_MIN` 分ごと**（デフォルト: 1440分 = 24時間）
+- 1回の実行で両検索を順に実行（間に1秒インターバル）
+
+### ブックマーク数ランダム検索
+
+```
+https://b.hatena.ne.jp/q/entry?target=all&sort=recent&users={N}
 ```
 
-- 実行間隔: **24時間ごと**
-- 対象期間は環境変数 `CRAWL_DATE_FROM` / `CRAWL_DATE_TO` で設定
+- `N` = 0 〜 `HISTORICAL_BOOKMARK_MAX`（デフォルト: 200）のランダム値
+- 人気・マイナー問わず幅広い記事を収集
+
+### 日付範囲ランダム検索
+
+```
+https://b.hatena.ne.jp/q/entry?target=all&sort=recent&users={M}&safe=on&date_begin={begin}&date_end={end}
+```
+
+- `begin` = `CRAWL_DATE_FROM` 〜 `CRAWL_DATE_TO - HISTORICAL_DATE_WINDOW_DAYS` のランダム日付
+- `end` = `begin + HISTORICAL_DATE_WINDOW_DAYS`（デフォルト: 7日）
+- `M` = 0 〜 `HISTORICAL_DATE_USERS_MAX`（デフォルト: 2）のランダム値（低ブクマ優先）

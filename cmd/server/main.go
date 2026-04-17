@@ -68,11 +68,12 @@ func run() error {
 	rssFetcher := rss.NewFetcher()
 
 	// クローラー
-	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, hatenaPlatformID)
-	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog)
-	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog)
-	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo)
-	sched := crawler.NewScheduler(discoverer, indexer, syncer, historical, cfg.CrawlIntervalMin, cfg.SyncIntervalMin)
+	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
+	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount)
+	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
+	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)
+	recent := crawler.NewRecent(blogRepo, hatenaPlatformID)
+	sched := crawler.NewScheduler(discoverer, indexer, syncer, historical, recent, cfg.CrawlIntervalMin, cfg.SyncIntervalMin, cfg.HistoricalIntervalMin, cfg.RecentIntervalMin)
 
 	// ルーティング
 	mux := http.NewServeMux()

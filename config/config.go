@@ -14,13 +14,24 @@ type Config struct {
 	OpenAIAPIKey       string
 	EmbeddingModel     string
 	APIKey             string
-	CrawlIntervalMin   int
-	SyncIntervalMin    int
-	SyncStalenessDays  int
-	CrawlConcurrency   int
-	CrawlDateFrom      time.Time
-	CrawlDateTo        time.Time
-	MaxArticlesPerBlog int
+	CrawlIntervalMin      int
+	SyncIntervalMin       int
+	HistoricalIntervalMin int
+	RecentIntervalMin     int
+	SyncStalenessDays     int
+	CrawlConcurrency      int
+	IndexBatchSize        int
+	IndexMaxErrorCount    int
+	SyncBatchSize         int
+	SyncMaxErrorCount     int
+	TFIDFSampleSize       int
+	TFIDFKeywordCount     int
+	CrawlDateFrom           time.Time
+	CrawlDateTo             time.Time
+	HistoricalBookmarkMax   int
+	HistoricalDateWindowDays int
+	HistoricalDateUsersMax  int
+	MaxArticlesPerBlog      int
 	CORSAllowedOrigins []string
 	LogLevel           string
 }
@@ -60,13 +71,24 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:       openaiKey,
 		EmbeddingModel:     getEnvOrDefault("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		APIKey:             apiKey,
-		CrawlIntervalMin:   getEnvInt("CRAWL_INTERVAL_MIN", 360),
-		SyncIntervalMin:    getEnvInt("SYNC_INTERVAL_MIN", 60),
-		SyncStalenessDays:  getEnvInt("SYNC_STALENESS_DAYS", 30),
-		CrawlConcurrency:   getEnvInt("CRAWL_CONCURRENCY", 5),
-		CrawlDateFrom:      crawlDateFrom,
-		CrawlDateTo:        crawlDateTo,
-		MaxArticlesPerBlog: getEnvInt("MAX_ARTICLES_PER_BLOG", 5),
+		CrawlIntervalMin:      getEnvInt("CRAWL_INTERVAL_MIN", 360),
+		SyncIntervalMin:       getEnvInt("SYNC_INTERVAL_MIN", 60),
+		HistoricalIntervalMin: getEnvInt("HISTORICAL_INTERVAL_MIN", 1440),
+		RecentIntervalMin:     getEnvInt("RECENT_INTERVAL_MIN", 30),
+		SyncStalenessDays:     getEnvInt("SYNC_STALENESS_DAYS", 30),
+		CrawlConcurrency:      getEnvInt("CRAWL_CONCURRENCY", 5),
+		IndexBatchSize:        getEnvInt("INDEX_BATCH_SIZE", 50),
+		IndexMaxErrorCount:    getEnvInt("INDEX_MAX_ERROR_COUNT", 3),
+		SyncBatchSize:         getEnvInt("SYNC_BATCH_SIZE", 50),
+		SyncMaxErrorCount:     getEnvInt("SYNC_MAX_ERROR_COUNT", 3),
+		TFIDFSampleSize:       getEnvInt("TFIDF_SAMPLE_SIZE", 500),
+		TFIDFKeywordCount:     getEnvInt("TFIDF_KEYWORD_COUNT", 20),
+		CrawlDateFrom:            crawlDateFrom,
+		CrawlDateTo:              crawlDateTo,
+		HistoricalBookmarkMax:    getEnvInt("HISTORICAL_BOOKMARK_MAX", 200),
+		HistoricalDateWindowDays: getEnvInt("HISTORICAL_DATE_WINDOW_DAYS", 7),
+		HistoricalDateUsersMax:   getEnvInt("HISTORICAL_DATE_USERS_MAX", 2),
+		MaxArticlesPerBlog:       getEnvInt("MAX_ARTICLES_PER_BLOG", 5),
 		CORSAllowedOrigins: corsOrigins,
 		LogLevel:           getEnvOrDefault("LOG_LEVEL", "info"),
 	}, nil
