@@ -43,8 +43,9 @@ func TestDiscoverer_Run(t *testing.T) {
 	pool := setupE2EPool(t)
 	blogRepo := repository.NewBlogRepository(pool)
 	articleRepo := repository.NewArticleRepository(pool)
+	rssFetcher := rss.NewFetcher()
 
-	d := crawler.NewDiscoverer(blogRepo, articleRepo, hatenaPlatformID)
+	d := crawler.NewDiscoverer(blogRepo, articleRepo, rssFetcher, hatenaPlatformID, 0, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

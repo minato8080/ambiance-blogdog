@@ -19,12 +19,13 @@ func NewBlogRepository(db *pgxpool.Pool) *BlogRepository {
 	return &BlogRepository{db: db}
 }
 
-// Upsert はブログURLをキーとして UPSERT する。重複時は何もしない。
+// Upsert はブログURLをキーとして UPSERT する。既存行の name が空の場合のみ更新する。
 func (r *BlogRepository) Upsert(ctx context.Context, blog *model.Blog) error {
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO blogs (id, platform_id, blog_url, name, status, discovered_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (blog_url) DO NOTHING`,
+		ON CONFLICT (blog_url) DO UPDATE SET name = EXCLUDED.name
+		WHERE blogs.name = '' AND EXCLUDED.name <> ''`,
 		blog.ID, blog.PlatformID, blog.BlogURL, blog.Name, blog.Status, blog.DiscoveredAt,
 	)
 	if err != nil {

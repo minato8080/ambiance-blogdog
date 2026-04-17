@@ -61,10 +61,12 @@ func (rc *Recent) Run(ctx context.Context) error {
 		}
 		seen[blogURL] = true
 
+		blogName, _ := s.Attr("data-blog-name")
 		blog := &model.Blog{
 			ID:           ulid.Make().String(),
 			PlatformID:   rc.platformID,
 			BlogURL:      blogURL,
+			Name:         blogName,
 			Status:       model.BlogStatusPending,
 			DiscoveredAt: time.Now(),
 		}

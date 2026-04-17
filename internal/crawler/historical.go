@@ -127,10 +127,12 @@ func (h *Historical) crawl(ctx context.Context, srcURL string) error {
 		}
 		seen[blogURL] = true
 
+		blogName, _ := s.Attr("data-blog-name")
 		blog := &model.Blog{
 			ID:           ulid.Make().String(),
 			PlatformID:   h.platformID,
 			BlogURL:      blogURL,
+			Name:         blogName,
 			Status:       model.BlogStatusPending,
 			DiscoveredAt: time.Now(),
 		}

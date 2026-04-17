@@ -28,7 +28,9 @@ func NewFetcher() *Fetcher {
 
 // Fetch はフィード URL を取得・パースし、新しい順に最大 maxArticles 件の記事を返す。
 func (f *Fetcher) Fetch(ctx context.Context, feedURL string, maxArticles int) ([]*Article, error) {
-	feed, err := f.parser.ParseURLWithContext(feedURL, ctx)
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	feed, err := f.parser.ParseURLWithContext(feedURL, reqCtx)
 	if err != nil {
 		return nil, fmt.Errorf("rss.Fetch %s: %w", feedURL, err)
 	}

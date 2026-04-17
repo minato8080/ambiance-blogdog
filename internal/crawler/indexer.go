@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/minato8080/ambiance-blogdog/internal/embedding"
@@ -23,6 +24,7 @@ type Indexer struct {
 	maxArticles   int
 	batchSize     int
 	maxErrorCount int
+	concurrency   int
 }
 
 func NewIndexer(
@@ -30,7 +32,7 @@ func NewIndexer(
 	articleRepo *repository.ArticleRepository,
 	rssFetcher *rss.Fetcher,
 	embedClient *embedding.Client,
-	maxArticles, batchSize, maxErrorCount int,
+	maxArticles, batchSize, maxErrorCount, concurrency int,
 ) *Indexer {
 	return &Indexer{
 		blogRepo:      blogRepo,
@@ -40,37 +42,40 @@ func NewIndexer(
 		maxArticles:   maxArticles,
 		batchSize:     batchSize,
 		maxErrorCount: maxErrorCount,
+		concurrency:   concurrency,
 	}
 }
 
-// Run は pending ブログを最大 batchSize 件処理する。
+// Run は pending ブログを最大 batchSize 件、concurrency 並列で処理する。
 func (ix *Indexer) Run(ctx context.Context) error {
 	blogs, err := ix.blogRepo.FindPending(ctx, ix.batchSize)
 	if err != nil {
 		return fmt.Errorf("indexer.Run: %w", err)
 	}
 
-	for i, blog := range blogs {
-		if err := ctx.Err(); err != nil {
-			return err
+	sem := make(chan struct{}, ix.concurrency)
+	var wg sync.WaitGroup
+
+	for _, blog := range blogs {
+		if ctx.Err() != nil {
+			break
 		}
-		if err := ix.indexBlog(ctx, blog); err != nil {
-			slog.Warn("indexer: blog failed", "blog_url", blog.BlogURL, "error", err)
-		}
-		// robots.txt 遵守: ブログ間に1秒以上のインターバル（最後の1件はスキップ）
-		if i < len(blogs)-1 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(time.Second):
+		blog := blog
+		sem <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if err := ix.indexBlog(ctx, blog); err != nil {
+				slog.Warn("indexer: blog failed", "blog_url", blog.BlogURL, "error", err)
 			}
-		}
+		}()
 	}
+	wg.Wait()
 	return nil
 }
 
 func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
-	// インデックス中に更新
 	now := time.Now()
 	if err := ix.blogRepo.UpdateStatus(ctx, blog.ID, model.BlogStatusIndexing, blog.ErrorCount, &now); err != nil {
 		return err
@@ -83,20 +88,18 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 		status := model.BlogStatusPending
 		if blog.ErrorCount >= ix.maxErrorCount {
 			status = model.BlogStatusError
-			slog.Warn("indexer: blog marked as error", "blog_url", blog.BlogURL)
+			slog.Warn("indexer: blog marked as error", "blog_url", blog.BlogURL, "error", err)
 		}
 		return ix.blogRepo.UpdateStatus(ctx, blog.ID, status, blog.ErrorCount, nil)
 	}
 
 	for _, a := range articles {
-		if err := ctx.Err(); err != nil {
-			return err
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if err := ix.indexArticle(ctx, blog.ID, a); err != nil {
 			slog.Warn("indexer: article failed", "url", a.URL, "error", err)
 		}
-		// レート制限
-		time.Sleep(time.Second)
 	}
 
 	syncedAt := time.Now()
@@ -104,7 +107,6 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 }
 
 func (ix *Indexer) indexArticle(ctx context.Context, blogID string, a *rss.Article) error {
-	// 上限チェック: 超過分は最古記事を削除
 	count, err := ix.articleRepo.CountByBlogID(ctx, blogID)
 	if err != nil {
 		return err

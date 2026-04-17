@@ -12,6 +12,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/minato8080/ambiance-blogdog/internal/model"
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
+	"github.com/minato8080/ambiance-blogdog/internal/rss"
 	"github.com/minato8080/ambiance-blogdog/internal/tfidf"
 	"github.com/oklog/ulid/v2"
 )
@@ -36,18 +37,20 @@ type Discoverer struct {
 	articleRepo   *repository.ArticleRepository
 	platformID    string
 	httpClient    *http.Client
+	rssFetcher    *rss.Fetcher
 	keywordIndex  int
 	keywords      []string
 	tfidfSample   int
 	tfidfKeywords int
 }
 
-func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, platformID string, tfidfSample, tfidfKeywords int) *Discoverer {
+func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, rssFetcher *rss.Fetcher, platformID string, tfidfSample, tfidfKeywords int) *Discoverer {
 	return &Discoverer{
 		blogRepo:      blogRepo,
 		articleRepo:   articleRepo,
 		platformID:    platformID,
 		httpClient:    &http.Client{Timeout: 30 * time.Second},
+		rssFetcher:    rssFetcher,
 		keywords:      defaultKeywords,
 		tfidfSample:   tfidfSample,
 		tfidfKeywords: tfidfKeywords,
@@ -127,6 +130,13 @@ func (d *Discoverer) crawlSource(ctx context.Context, srcURL string) error {
 
 	blogURLs := d.extractBlogURLs(srcURL, doc)
 	for _, blogURL := range blogURLs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !d.validateFeed(ctx, blogURL) {
+			slog.Debug("discovery: invalid blog feed", "blog_url", blogURL)
+			continue
+		}
 		blog := &model.Blog{
 			ID:           ulid.Make().String(),
 			PlatformID:   d.platformID,
@@ -140,6 +150,15 @@ func (d *Discoverer) crawlSource(ctx context.Context, srcURL string) error {
 		}
 	}
 	return nil
+}
+
+func (d *Discoverer) validateFeed(ctx context.Context, blogURL string) bool {
+	feedURL := blogURL + "/feed"
+	if _, err := d.rssFetcher.Fetch(ctx, feedURL, 1); err != nil {
+		slog.Debug("discovery: feed validation failed", "blog_url", blogURL, "feed_url", feedURL, "error", err)
+		return false
+	}
+	return true
 }
 
 func (d *Discoverer) extractBlogURLs(srcURL string, doc *goquery.Document) []string {

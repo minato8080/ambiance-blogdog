@@ -79,6 +79,7 @@ func (s *Syncer) syncBlog(ctx context.Context, blog *model.Blog) error {
 		status := model.BlogStatusReady
 		if blog.ErrorCount >= s.maxErrorCount {
 			status = model.BlogStatusError
+			slog.Warn("syncer: blog marked as error", "blog_url", blog.BlogURL, "error", err)
 		}
 		return s.blogRepo.UpdateStatus(ctx, blog.ID, status, blog.ErrorCount, blog.LastSyncedAt)
 	}
