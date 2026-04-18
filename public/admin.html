@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ambiance Blogdog — Admin</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <h1>Ambiance Blogdog</h1>
+      <div class="subtitle">Admin Dashboard</div>
+
+      <div class="auth">
+        <input id="apiKey" type="password" placeholder="API Key" />
+        <button onclick="load()">Load</button>
+        <button class="secondary" onclick="clearKey()">Clear</button>
+      </div>
+      <div id="message"></div>
+
+      <!-- Stats -->
+      <div id="statsSection" style="display:none">
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <!-- Blogs -->
+        <div class="section-header">
+          <div class="section-title">Blogs</div>
+          <span id="blogsCount" style="font-size:13px;color:#9aa0a6"></span>
+        </div>
+        <div class="filter-row">
+          <input type="text" id="searchInput" placeholder="URL / Name で絞り込み..." oninput="renderTable()" />
+          <button class="filter-btn active" data-status="" onclick="setStatus(this)">All</button>
+          <button class="filter-btn" data-status="ready"    onclick="setStatus(this)">ready</button>
+          <button class="filter-btn" data-status="pending"  onclick="setStatus(this)">pending</button>
+          <button class="filter-btn" data-status="indexing" onclick="setStatus(this)">indexing</button>
+          <button class="filter-btn" data-status="error"    onclick="setStatus(this)">error</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Blog</th>
+              <th>Status</th>
+              <th>Errors</th>
+              <th>Last Synced</th>
+              <th>Discovered</th>
+            </tr>
+          </thead>
+          <tbody id="blogsBody"></tbody>
+        </table>
+        <div id="blogsEmpty" class="empty" style="display:none">No blogs found.</div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    <script>
+      const PAGE_SIZE = 100;
+      let allBlogs = [];
+      let activeStatus = "";
+      let currentPage = 1;
+
+      function savedKey() {
+        return localStorage.getItem("admin_api_key") || "";
+      }
+
+      window.onload = () => {
+        const k = savedKey();
+        if (k) {
+          document.getElementById("apiKey").value = k;
+          load();
+        }
+      };
+
+      function clearKey() {
+        localStorage.removeItem("admin_api_key");
+        document.getElementById("apiKey").value = "";
+        document.getElementById("statsSection").style.display = "none";
+        setMessage("");
+      }
+
+      function setMessage(msg) {
+        document.getElementById("message").textContent = msg;
+      }
+
+      async function load() {
+        const key = document.getElementById("apiKey").value.trim();
+        if (!key) { setMessage("API Key を入力してください"); return; }
+        localStorage.setItem("admin_api_key", key);
+        setMessage("");
+
+        const headers = { Authorization: "Bearer " + key };
+
+        try {
+          const [statsRes, blogsRes] = await Promise.all([
+            fetch("http://localhost:8080/stats", { headers }),
+            fetch("http://localhost:8080/blogs", { headers }),
+          ]);
+
+          if (statsRes.status === 401 || blogsRes.status === 401) {
+            setMessage("認証失敗: API Key が正しくありません");
+            return;
+          }
+          if (!statsRes.ok || !blogsRes.ok) {
+            setMessage("データ取得に失敗しました");
+            return;
+          }
+
+          const stats = await statsRes.json();
+          const blogsData = await blogsRes.json();
+
+          renderStats(stats);
+          allBlogs = blogsData.blogs || [];
+          renderTable();
+          document.getElementById("statsSection").style.display = "block";
+        } catch (e) {
+          setMessage("接続エラー: " + e.message);
+        }
+      }
+
+      function renderStats(stats) {
+        const byStatus = stats.blogs.by_status || {};
+        const items = [
+          { label: "Total Blogs",    value: stats.blogs.total },
+          { label: "Total Articles", value: stats.articles.total },
+          { label: "ready",    value: byStatus.ready    ?? 0 },
+          { label: "pending",  value: byStatus.pending  ?? 0 },
+          { label: "indexing", value: byStatus.indexing ?? 0 },
+          { label: "error",    value: byStatus.error    ?? 0 },
+        ];
+        document.getElementById("statsGrid").innerHTML = items.map(item => `
+          <div class="stat-card">
+            <div class="stat-label">${item.label}</div>
+            <div class="stat-value">${item.value.toLocaleString()}</div>
+          </div>
+        `).join("");
+      }
+
+      function setStatus(btn) {
+        document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeStatus = btn.dataset.status;
+        currentPage = 1;
+        renderTable();
+      }
+
+      function renderTable() {
+        const query = document.getElementById("searchInput").value.toLowerCase();
+        const filtered = allBlogs.filter(b => {
+          const matchStatus = !activeStatus || b.status === activeStatus;
+          const matchQuery = !query ||
+            b.blog_url.toLowerCase().includes(query) ||
+            (b.name || "").toLowerCase().includes(query);
+          return matchStatus && matchQuery;
+        });
+
+        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        document.getElementById("blogsCount").textContent = `${filtered.length} / ${allBlogs.length}`;
+
+        if (filtered.length === 0) {
+          document.getElementById("blogsBody").innerHTML = "";
+          document.getElementById("blogsEmpty").style.display = "block";
+          document.getElementById("pagination").innerHTML = "";
+          return;
+        }
+        document.getElementById("blogsEmpty").style.display = "none";
+
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const page = filtered.slice(start, start + PAGE_SIZE);
+
+        document.getElementById("blogsBody").innerHTML = page.map(b => `
+          <tr>
+            <td>
+              <div><a href="${b.blog_url}" target="_blank">${b.blog_url}</a></div>
+              ${b.name ? `<div style="font-size:11px;color:#9aa0a6;margin-top:2px">${b.name}</div>` : ""}
+            </td>
+            <td><span class="badge badge-${b.status}">${b.status}</span></td>
+            <td style="color:${b.error_count > 0 ? '#ca4c4c' : '#9aa0a6'}">${b.error_count}</td>
+            <td style="color:#9aa0a6">${b.last_synced_at ? fmtDate(b.last_synced_at) : "—"}</td>
+            <td style="color:#9aa0a6">${fmtDate(b.discovered_at)}</td>
+          </tr>
+        `).join("");
+
+        renderPagination(totalPages);
+      }
+
+      function renderPagination(totalPages) {
+        if (totalPages <= 1) {
+          document.getElementById("pagination").innerHTML = "";
+          return;
+        }
+        const around = 2;
+        const pages = new Set([1, totalPages]);
+        for (let i = currentPage - around; i <= currentPage + around; i++) {
+          if (i >= 1 && i <= totalPages) pages.add(i);
+        }
+        const sorted = [...pages].sort((a, b) => a - b);
+
+        let html = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""}>‹</button>`;
+        let prev = 0;
+        for (const p of sorted) {
+          if (prev && p - prev > 1) html += `<span class="page-info">…</span>`;
+          html += `<button class="page-btn ${p === currentPage ? "active" : ""}" onclick="goPage(${p})">${p}</button>`;
+          prev = p;
+        }
+        html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""}>›</button>`;
+        html += `<span class="page-info">${currentPage} / ${totalPages} ページ</span>`;
+        document.getElementById("pagination").innerHTML = html;
+      }
+
+      function goPage(p) {
+        currentPage = p;
+        renderTable();
+        document.querySelector("table").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function fmtDate(iso) {
+        const d = new Date(iso);
+        return d.toLocaleDateString("ja-JP") + " " + d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      }
+    </script>
+  </body>
+</html>

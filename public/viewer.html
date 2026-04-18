@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ambiance Blogdog</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app app--narrow">
+      <h1>Ambiance Blogdog</h1>
+      <div class="subtitle">
+        Drop in an article's URL, and Blogdog will fetch articles that share the
+        same ambiance.
+      </div>
+
+      <div class="input">
+        <input
+          id="urlInput"
+          type="text"
+          placeholder="Enter URL..."
+          onkeydown="if (event.key === 'Enter') search();"
+        />
+        <button onclick="search()">Search</button>
+        <button onclick="pasteInput()">Paste</button>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <script>
+      async function search() {
+        const url = document.getElementById("urlInput").value;
+        const resBox = document.getElementById("result");
+        resBox.innerHTML = "Loading...";
+
+        try {
+          const res = await fetch(
+            `http://localhost:8080/similar?url=${encodeURIComponent(url)}`,
+          );
+          const data = await res.json();
+
+          let html = `
+            <div class="card">
+              <div class="title">Source Article</div>
+              <div class="title">
+                <a href="${data.source.url}" target="_blank">${data.source.title}</a>
+              </div>
+              ${data.source.blog_name ? `<a href="${data.source.blog_url}" target="_blank" class="blog-name">${data.source.blog_name}</a>` : ""}
+            </div>
+          `;
+
+          data.similar_articles.forEach((a) => {
+            html += `
+              <div class="card">
+                <div class="title">
+                  <a href="${a.url}" target="_blank">${a.title}</a>
+                </div>
+                <a href="${a.blog_url}" target="_blank" class="blog-name">${a.blog_name}</a>
+                <div class="meta">
+                  similarity: ${a.similarity.toFixed(3)}<br/>
+                  ${a.tags.join(", ")}<br/>
+                  ${new Date(a.published_at).toLocaleDateString()}
+                </div>
+              </div>
+            `;
+          });
+
+          resBox.innerHTML = html;
+        } catch (e) {
+          resBox.innerHTML = "Error fetching data";
+        }
+      }
+
+      function clearInput() {
+        document.getElementById("urlInput").value = "";
+      }
+
+      function handleLinkContextMenu(event, url) {
+        event.preventDefault();
+        clearInput();
+        document.getElementById("urlInput").value = url;
+      }
+
+      async function pasteInput() {
+        clearInput();
+        try {
+          const text = await navigator.clipboard.readText();
+          document.getElementById("urlInput").value = text;
+        } catch (e) {
+          alert("Failed to paste from clipboard");
+        }
+      }
+    </script>
+  </body>
+</html>
