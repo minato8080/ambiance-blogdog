@@ -23,15 +23,12 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 
 	"github.com/minato8080/ambiance-blogdog/config"
-	"github.com/minato8080/ambiance-blogdog/internal/crawler"
 	"github.com/minato8080/ambiance-blogdog/internal/embedding"
 	"github.com/minato8080/ambiance-blogdog/internal/handler"
 	"github.com/minato8080/ambiance-blogdog/internal/middleware"
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
-	"github.com/minato8080/ambiance-blogdog/internal/rss"
 )
 
-// hatenaPlatformID はプラットフォームマスタの初期データと一致する。
 const hatenaPlatformID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
 func main() {
@@ -49,33 +46,20 @@ func run() error {
 
 	setupLogger(cfg.LogLevel)
 
-	// DB 接続
 	pool, err := newPool(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("db: %w", err)
 	}
 	defer pool.Close()
 
-	// マイグレーション
 	if err := runMigrations(cfg.DatabaseURL); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// 依存関係の組み立て
 	blogRepo := repository.NewBlogRepository(pool)
 	articleRepo := repository.NewArticleRepository(pool)
 	embedClient := embedding.NewClient(cfg.OpenAIAPIKey, cfg.CrawlConcurrency, openai.EmbeddingModel(cfg.EmbeddingModel))
-	rssFetcher := rss.NewFetcher()
 
-	// クローラー
-	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
-	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount, cfg.CrawlConcurrency)
-	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
-	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)
-	recent := crawler.NewRecent(blogRepo, hatenaPlatformID)
-	sched := crawler.NewScheduler(discoverer, indexer, syncer, historical, recent, cfg.CrawlIntervalMin, cfg.SyncIntervalMin, cfg.HistoricalIntervalMin, cfg.RecentIntervalMin)
-
-	// ルーティング
 	mux := http.NewServeMux()
 	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, hatenaPlatformID))
 	mux.Handle("GET /blogs", middleware.APIKey(cfg.APIKey)(handler.NewBlogsHandler(blogRepo)))
@@ -90,13 +74,6 @@ func run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// クローラー起動
-	sched.Start(ctx)
-
-	// グレースフルシャットダウン
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -113,7 +90,6 @@ func run() error {
 		return err
 	case <-quit:
 		slog.Info("shutting down...")
-		cancel()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
 		return srv.Shutdown(shutdownCtx)
@@ -136,7 +112,6 @@ func runMigrations(databaseURL string) error {
 	if err != nil {
 		return fmt.Errorf("migrations source: %w", err)
 	}
-	// golang-migrate の pgx/v5 ドライバは "pgx5" スキームを要求する
 	migrateURL := strings.NewReplacer(
 		"postgres://", "pgx5://",
 		"postgresql://", "pgx5://",

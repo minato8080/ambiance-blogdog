@@ -15,8 +15,9 @@ services:
       timeout: 5s
       retries: 5
 
-  app:
+  api:
     build: .
+    command: ["/api"]
     depends_on:
       db:
         condition: service_healthy
@@ -27,6 +28,17 @@ services:
       PORT: "8080"
     ports:
       - "8080:8080"
+
+  crawler:
+    build: .
+    command: ["/crawler"]
+    depends_on:
+      api:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://blogdog:blogdog@db:5432/blogdog?sslmode=disable
 
 volumes:
   pgdata:
