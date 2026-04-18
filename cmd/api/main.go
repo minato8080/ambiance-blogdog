@@ -61,7 +61,7 @@ func run() error {
 	embedClient := embedding.NewClient(cfg.OpenAIAPIKey, cfg.CrawlConcurrency, openai.EmbeddingModel(cfg.EmbeddingModel))
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, hatenaPlatformID))
+	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, hatenaPlatformID, cfg.EmbedMaxChars))
 	mux.Handle("GET /blogs", middleware.APIKey(cfg.APIKey)(handler.NewBlogsHandler(blogRepo)))
 	mux.Handle("GET /stats", middleware.APIKey(cfg.APIKey)(handler.NewStatsHandler(blogRepo, articleRepo)))
 

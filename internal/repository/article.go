@@ -72,8 +72,8 @@ func (r *ArticleRepository) FindByURL(ctx context.Context, url string) (*model.A
 	return a, nil
 }
 
-// SearchSimilar はコサイン類似度で類似記事を検索する（excludeURL を除外）。
-func (r *ArticleRepository) SearchSimilar(ctx context.Context, embedding []float32, excludeURL string, limit int) ([]*model.SimilarArticle, error) {
+// SearchSimilar はコサイン類似度で類似記事を検索する（excludeURL および同一ブログを除外）。
+func (r *ArticleRepository) SearchSimilar(ctx context.Context, embedding []float32, excludeURL string, excludeBlogID string, limit int) ([]*model.SimilarArticle, error) {
 	vec := pgvector.NewVector(embedding)
 	rows, err := r.db.Query(ctx, `
 		SELECT a.url, a.title, COALESCE(b.blog_url, ''), COALESCE(b.name, ''), a.tags, a.published_at,
@@ -81,10 +81,11 @@ func (r *ArticleRepository) SearchSimilar(ctx context.Context, embedding []float
 		FROM articles a
 		LEFT JOIN blogs b ON b.id = a.blog_id
 		WHERE a.url != $2
+		  AND ($3 = '' OR a.blog_id != $3)
 		  AND a.embedding IS NOT NULL
 		ORDER BY a.embedding <=> $1
-		LIMIT $3`,
-		vec, excludeURL, limit,
+		LIMIT $4`,
+		vec, excludeURL, excludeBlogID, limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("article.SearchSimilar: %w", err)

@@ -20,10 +20,12 @@
 ## ディレクトリ構成
 
 ```
-blog-finder/
+ambiance-blogdog/
 ├── cmd/
-│   └── server/
-│       └── main.go                   # エントリポイント（APIサーバー + ワーカー起動）
+│   ├── api/
+│   │   └── main.go                   # APIサーバー エントリポイント（Cloud Run）
+│   └── crawler/
+│       └── main.go                   # クローラー エントリポイント（Cloud Run Jobs）
 ├── internal/
 │   ├── handler/
 │   │   ├── similar.go                # GET /similar
@@ -31,7 +33,10 @@ blog-finder/
 │   │   └── stats.go                  # GET /stats（管理用）
 │   ├── crawler/
 │   │   ├── discovery.go              # はてなブログ公開ページからブログURL収集
+│   │   ├── historical.go             # 過去記事の時間断面サンプリング
 │   │   ├── recent.go                 # ブックマーク数0の最新エントリー収集
+│   │   ├── indexer.go                # 記事インデックス構築
+│   │   ├── syncer.go                 # 差分更新
 │   │   └── scheduler.go              # クローラーのスケジューリング管理
 │   ├── rss/
 │   │   └── fetcher.go                # RSSフィード取得・パース
@@ -47,17 +52,26 @@ blog-finder/
 │   │   └── logger.go                 # リクエストログ
 │   └── model/
 │       ├── blog.go
-│       └── article.go
+│       ├── article.go
+│       └── platform.go
 ├── migrations/
-│   ├── 001_create_platforms.up.sql
-│   ├── 001_create_platforms.down.sql
-│   ├── 002_create_blogs.up.sql
-│   ├── 002_create_blogs.down.sql
-│   ├── 003_create_articles.up.sql
-│   └── 003_create_articles.down.sql
+│   ├── 001_create_platforms.{up,down}.sql
+│   ├── 002_create_blogs.{up,down}.sql
+│   ├── 003_create_articles.{up,down}.sql
+│   ├── 004_articles_fk_cascade.{up,down}.sql
+│   └── embed.go
+├── public/                           # Firebase Hosting デプロイ対象
+│   ├── admin.html                    # 管理画面
+│   ├── viewer.html                   # ビューワー
+│   └── style.css
+├── open-api/
+│   └── similar.yaml                  # OpenAPI仕様
 ├── config/
 │   └── config.go
+├── scripts/
 ├── docker-compose.yml
+├── Dockerfile
+├── Makefile
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -93,6 +107,7 @@ blog-finder/
 | `HISTORICAL_DATE_USERS_MAX`   | `2`               | Historical     | 日付範囲検索のブックマーク数上限（0〜N）      |
 | `RECENT_INTERVAL_MIN`         | `30`              | Recent         | 実行間隔（分）                                |
 | `CRAWL_CONCURRENCY`           | `5`               | 共通           | OpenAI API 並列呼び出し数上限                 |
+| `EMBED_MAX_CHARS`       | `1000`            | Embedding に使用するテキストの最大文字数      |
 | `CORS_ALLOWED_ORIGINS`  | `*`               | 許可CORSオリジン（カンマ区切り）              |
 | `LOG_LEVEL`             | `info`            | ログレベル                                    |
 
@@ -103,8 +118,11 @@ blog-finder/
 ### 環境構成
 
 - **開発環境**: Docker Compose（Go + PostgreSQL + pgvector）
-- **本番環境**: Kubernetes または AWS ECS
-- **データベース**: PostgreSQL 15+ with pgvector 拡張
+- **本番環境**:
+  - Firebase Hosting — 静的HTML（無料枠）
+  - Cloud Run — Go API（無料枠）
+  - Cloud Run Jobs — Goクローラー（無料枠）
+  - Neon — PostgreSQL + pgvector（無料枠）
 
 ### 監視・ログ
 

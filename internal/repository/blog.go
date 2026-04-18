@@ -124,7 +124,7 @@ func (r *BlogRepository) List(ctx context.Context) ([]*model.Blog, error) {
 	return scanBlogs(rows)
 }
 
-// CountByStatus は各 status のブログ数を返す。
+// CountByStatus は各 status のブログ数を返す。error は error_count >= 1 のブログ数。
 func (r *BlogRepository) CountByStatus(ctx context.Context) (map[string]int, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT status, COUNT(*) FROM blogs GROUP BY status`)
@@ -142,7 +142,17 @@ func (r *BlogRepository) CountByStatus(ctx context.Context) (map[string]int, err
 		}
 		counts[status] = count
 	}
-	return counts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var errorCount int
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM blogs WHERE error_count >= 1`).Scan(&errorCount); err != nil {
+		return nil, fmt.Errorf("blog.CountByStatus error_count: %w", err)
+	}
+	counts["error"] = errorCount
+
+	return counts, nil
 }
 
 func scanBlogs(rows interface {

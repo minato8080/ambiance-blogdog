@@ -61,3 +61,84 @@
 | 400            | `INVALID_PARAMS`        | パラメータ不正                      |
 | 422            | `ARTICLE_FETCH_FAILED`  | 対象記事URLのフェッチ・パースに失敗 |
 | 503            | `EMBEDDING_UNAVAILABLE` | Embedding API呼び出し失敗           |
+
+---
+
+## `GET /blogs` — 収集済みブログ一覧
+
+> APIキー認証必須（`Authorization: Bearer <API_KEY>`）
+
+### クエリパラメータ
+
+なし
+
+### レスポンス（200 OK）
+
+```json
+{
+  "blogs": [
+    {
+      "id": "01J...",
+      "blog_url": "https://example.hatenablog.com",
+      "name": "Example Blog",
+      "status": "ready",
+      "error_count": 0,
+      "last_synced_at": "2024-03-01T12:00:00+09:00",
+      "discovered_at": "2024-01-01T00:00:00+09:00"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### `status` の値
+
+| 値         | 説明                               |
+| ---------- | ---------------------------------- |
+| `pending`  | クロール待ち                       |
+| `indexing` | インデックス構築中                 |
+| `ready`    | インデックス済み（検索対象）       |
+| `error`    | エラー状態（連続失敗によりスキップ）|
+
+### エラーレスポンス
+
+| HTTPステータス | コード           | 説明             |
+| -------------- | ---------------- | ---------------- |
+| 401            | `UNAUTHORIZED`   | APIキー不正      |
+| 500            | `INTERNAL_ERROR` | DB取得失敗       |
+
+---
+
+## `GET /stats` — クロール統計情報
+
+> APIキー認証必須（`Authorization: Bearer <API_KEY>`）
+
+### クエリパラメータ
+
+なし
+
+### レスポンス（200 OK）
+
+```json
+{
+  "blogs": {
+    "total": 120,
+    "by_status": {
+      "pending": 10,
+      "indexing": 3,
+      "ready": 105,
+      "error": 2
+    }
+  },
+  "articles": {
+    "total": 498
+  }
+}
+```
+
+### エラーレスポンス
+
+| HTTPステータス | コード           | 説明             |
+| -------------- | ---------------- | ---------------- |
+| 401            | `UNAUTHORIZED`   | APIキー不正      |
+| 500            | `INTERNAL_ERROR` | DB取得失敗       |

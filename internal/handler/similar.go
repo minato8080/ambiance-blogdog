@@ -25,11 +25,12 @@ const (
 )
 
 type SimilarHandler struct {
-	articleRepo *repository.ArticleRepository
-	blogRepo    *repository.BlogRepository
-	embedClient *embedding.Client
-	platformID  string
-	httpClient  *http.Client
+	articleRepo   *repository.ArticleRepository
+	blogRepo      *repository.BlogRepository
+	embedClient   *embedding.Client
+	platformID    string
+	httpClient    *http.Client
+	embedMaxChars int
 }
 
 func NewSimilarHandler(
@@ -37,13 +38,15 @@ func NewSimilarHandler(
 	blogRepo *repository.BlogRepository,
 	embedClient *embedding.Client,
 	platformID string,
+	embedMaxChars int,
 ) *SimilarHandler {
 	return &SimilarHandler{
-		articleRepo: articleRepo,
-		blogRepo:    blogRepo,
-		embedClient: embedClient,
-		platformID:  platformID,
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		articleRepo:   articleRepo,
+		blogRepo:      blogRepo,
+		embedClient:   embedClient,
+		platformID:    platformID,
+		httpClient:    &http.Client{Timeout: 10 * time.Second},
+		embedMaxChars: embedMaxChars,
 	}
 }
 
@@ -82,7 +85,7 @@ func (h *SimilarHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	similars, err := h.articleRepo.SearchSimilar(r.Context(), article.Embedding, rawURL, limit)
+	similars, err := h.articleRepo.SearchSimilar(r.Context(), article.Embedding, rawURL, article.BlogID, limit)
 	if err != nil {
 		slog.Error("similar: search failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "類似記事検索に失敗しました")
@@ -161,7 +164,7 @@ func (h *SimilarHandler) resolveArticle(ctx context.Context, rawURL string) (*mo
 		return nil, "", fmt.Errorf("fetch %s: %w", rawURL, err)
 	}
 
-	emb, err := h.embedClient.Embed(ctx, title+"\n"+text)
+	emb, err := h.embedClient.Embed(ctx, title+"\n"+truncate(text, h.embedMaxChars))
 	if err != nil {
 		return nil, "", fmt.Errorf("embed: %w", err)
 	}

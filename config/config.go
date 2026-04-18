@@ -32,6 +32,7 @@ type Config struct {
 	HistoricalDateWindowDays int
 	HistoricalDateUsersMax  int
 	MaxArticlesPerBlog      int
+	EmbedMaxChars           int
 	CORSAllowedOrigins []string
 	LogLevel           string
 }
@@ -89,6 +90,7 @@ func Load() (*Config, error) {
 		HistoricalDateWindowDays: getEnvInt("HISTORICAL_DATE_WINDOW_DAYS", 7),
 		HistoricalDateUsersMax:   getEnvInt("HISTORICAL_DATE_USERS_MAX", 2),
 		MaxArticlesPerBlog:       getEnvInt("MAX_ARTICLES_PER_BLOG", 5),
+		EmbedMaxChars:            getEnvInt("EMBED_MAX_CHARS", 1000),
 		CORSAllowedOrigins: corsOrigins,
 		LogLevel:           getEnvOrDefault("LOG_LEVEL", "info"),
 	}, nil
