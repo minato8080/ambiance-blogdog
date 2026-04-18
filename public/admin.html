@@ -22,6 +22,13 @@
       <div id="statsSection" style="display:none">
         <div class="stats-grid" id="statsGrid"></div>
 
+        <!-- Keywords -->
+        <div class="section-header">
+          <div class="section-title">Crawler Keywords</div>
+          <span id="keywordsCount" style="font-size:13px;color:#9aa0a6"></span>
+        </div>
+        <div id="keywordsContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px"></div>
+
         <!-- Blogs -->
         <div class="section-header">
           <div class="section-title">Blogs</div>
@@ -90,24 +97,27 @@
         const headers = { Authorization: "Bearer " + key };
 
         try {
-          const [statsRes, blogsRes] = await Promise.all([
+          const [statsRes, blogsRes, keywordsRes] = await Promise.all([
             fetch("http://localhost:8080/stats", { headers }),
             fetch("http://localhost:8080/blogs", { headers }),
+            fetch("http://localhost:8080/keywords", { headers }),
           ]);
 
-          if (statsRes.status === 401 || blogsRes.status === 401) {
+          if (statsRes.status === 401 || blogsRes.status === 401 || keywordsRes.status === 401) {
             setMessage("認証失敗: API Key が正しくありません");
             return;
           }
-          if (!statsRes.ok || !blogsRes.ok) {
+          if (!statsRes.ok || !blogsRes.ok || !keywordsRes.ok) {
             setMessage("データ取得に失敗しました");
             return;
           }
 
           const stats = await statsRes.json();
           const blogsData = await blogsRes.json();
+          const keywordsData = await keywordsRes.json();
 
           renderStats(stats);
+          renderKeywords(keywordsData.keywords || []);
           allBlogs = blogsData.blogs || [];
           renderTable();
           document.getElementById("statsSection").style.display = "block";
@@ -132,6 +142,13 @@
             <div class="stat-value">${item.value.toLocaleString()}</div>
           </div>
         `).join("");
+      }
+
+      function renderKeywords(keywords) {
+        document.getElementById("keywordsCount").textContent = `${keywords.length} keywords`;
+        document.getElementById("keywordsContainer").innerHTML = keywords.length
+          ? keywords.map(kw => `<span style="background:#2d2d2d;border:1px solid #3c4043;border-radius:12px;padding:4px 12px;font-size:13px;color:#e8eaed">${kw}</span>`).join("")
+          : `<span style="color:#9aa0a6;font-size:13px">キーワードなし（クローラー未実行）</span>`;
       }
 
       function setStatus(btn) {

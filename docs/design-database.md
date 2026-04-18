@@ -49,6 +49,17 @@ CONSTRAINT chk_blog_status CHECK (status IN ('pending', 'indexing', 'ready', 'er
 
 ---
 
+## `crawler_keywords` テーブル
+
+クローラーが TF-IDF で算出した現在のニッチキーワード一覧。Discovery クローラーの `refreshKeywords` 実行のたびに全件置き換えされる。
+
+| カラム       | 型            | 説明                         |
+| ------------ | ------------- | ---------------------------- |
+| `keyword`    | `TEXT`        | キーワード（主キー）         |
+| `updated_at` | `TIMESTAMPTZ` | 最終更新日時                 |
+
+---
+
 ## インデックス
 
 | 対象                    | 種別               | 用途                     |

@@ -10,8 +10,8 @@
     <div class="app app--narrow">
       <h1>Ambiance Blogdog</h1>
       <div class="subtitle">
-        Drop in an article's URL, and Blogdog will fetch articles that share the
-        same ambiance.
+        Drop in an article's URL. Blogdog sniffs out articles with a similar
+        ambiance.
       </div>
 
       <div class="input">
@@ -59,8 +59,8 @@
                 <a href="${a.blog_url}" target="_blank" class="blog-name">${a.blog_name}</a>
                 <div class="meta">
                   similarity: ${a.similarity.toFixed(3)}<br/>
-                  ${a.tags.join(", ")}<br/>
-                  ${new Date(a.published_at).toLocaleDateString()}
+                  tags: ${a.tags.join(", ")}<br/>
+                  published: ${new Date(a.published_at).toLocaleDateString()}
                 </div>
               </div>
             `;

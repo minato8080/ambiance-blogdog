@@ -47,10 +47,11 @@ func run() error {
 
 	blogRepo := repository.NewBlogRepository(pool)
 	articleRepo := repository.NewArticleRepository(pool)
+	keywordRepo := repository.NewKeywordRepository(pool)
 	embedClient := embedding.NewClient(cfg.OpenAIAPIKey, cfg.CrawlConcurrency, openai.EmbeddingModel(cfg.EmbeddingModel))
 	rssFetcher := rss.NewFetcher()
 
-	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
+	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, keywordRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
 	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount, cfg.CrawlConcurrency)
 	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
 	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)

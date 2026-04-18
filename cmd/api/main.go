@@ -58,12 +58,14 @@ func run() error {
 
 	blogRepo := repository.NewBlogRepository(pool)
 	articleRepo := repository.NewArticleRepository(pool)
+	keywordRepo := repository.NewKeywordRepository(pool)
 	embedClient := embedding.NewClient(cfg.OpenAIAPIKey, cfg.CrawlConcurrency, openai.EmbeddingModel(cfg.EmbeddingModel))
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, hatenaPlatformID, cfg.EmbedMaxChars))
 	mux.Handle("GET /blogs", middleware.APIKey(cfg.APIKey)(handler.NewBlogsHandler(blogRepo)))
 	mux.Handle("GET /stats", middleware.APIKey(cfg.APIKey)(handler.NewStatsHandler(blogRepo, articleRepo)))
+	mux.Handle("GET /keywords", middleware.APIKey(cfg.APIKey)(handler.NewKeywordsHandler(keywordRepo)))
 
 	corsMiddleware := buildCORSMiddleware(cfg.CORSAllowedOrigins)
 	srv := &http.Server{

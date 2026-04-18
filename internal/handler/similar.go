@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	defaultLimit = 5
+	defaultLimit = 10
 	maxLimit     = 20
 )
 

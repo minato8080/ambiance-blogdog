@@ -35,6 +35,7 @@ var defaultKeywords = []string{
 type Discoverer struct {
 	blogRepo      *repository.BlogRepository
 	articleRepo   *repository.ArticleRepository
+	keywordRepo   *repository.KeywordRepository
 	platformID    string
 	httpClient    *http.Client
 	rssFetcher    *rss.Fetcher
@@ -44,10 +45,11 @@ type Discoverer struct {
 	tfidfKeywords int
 }
 
-func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, rssFetcher *rss.Fetcher, platformID string, tfidfSample, tfidfKeywords int) *Discoverer {
+func NewDiscoverer(blogRepo *repository.BlogRepository, articleRepo *repository.ArticleRepository, keywordRepo *repository.KeywordRepository, rssFetcher *rss.Fetcher, platformID string, tfidfSample, tfidfKeywords int) *Discoverer {
 	return &Discoverer{
 		blogRepo:      blogRepo,
 		articleRepo:   articleRepo,
+		keywordRepo:   keywordRepo,
 		platformID:    platformID,
 		httpClient:    &http.Client{Timeout: 30 * time.Second},
 		rssFetcher:    rssFetcher,
@@ -70,6 +72,9 @@ func (d *Discoverer) refreshKeywords(ctx context.Context) {
 		d.keywords = keywords
 		d.keywordIndex = d.keywordIndex % len(d.keywords)
 		slog.Info("discovery: keywords refreshed via TF-IDF", "count", len(keywords))
+		if err := d.keywordRepo.Replace(ctx, keywords); err != nil {
+			slog.Warn("discovery: keyword save failed", "error", err)
+		}
 	}
 }
 
