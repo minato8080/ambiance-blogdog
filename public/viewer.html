@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ambiance Blogdog</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="config.js"></script>
   </head>
   <body>
     <div class="app app--narrow">
@@ -36,7 +37,7 @@
 
         try {
           const res = await fetch(
-            `http://localhost:8080/similar?url=${encodeURIComponent(url)}`,
+            `${API_BASE_URL}/similar?url=${encodeURIComponent(url)}`,
           );
           const data = await res.json();
 

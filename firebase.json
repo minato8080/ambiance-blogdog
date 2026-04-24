@@ -4,6 +4,13 @@
     "ignore": [
       "firebase.json",
       "**/.*"
+    ],
+    "redirects": [
+      {
+        "source": "/",
+        "destination": "/viewer.html",
+        "type": 302
+      }
     ]
   }
 }

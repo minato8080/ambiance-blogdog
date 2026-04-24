@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ambiance Blogdog — Admin</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="config.js"></script>
   </head>
   <body>
     <div class="app">
@@ -98,9 +99,9 @@
 
         try {
           const [statsRes, blogsRes, keywordsRes] = await Promise.all([
-            fetch("http://localhost:8080/stats", { headers }),
-            fetch("http://localhost:8080/blogs", { headers }),
-            fetch("http://localhost:8080/keywords", { headers }),
+            fetch(`${API_BASE_URL}/stats`, { headers }),
+            fetch(`${API_BASE_URL}/blogs`, { headers }),
+            fetch(`${API_BASE_URL}/keywords`, { headers }),
           ]);
 
           if (statsRes.status === 401 || blogsRes.status === 401 || keywordsRes.status === 401) {

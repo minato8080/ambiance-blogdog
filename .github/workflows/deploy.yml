@@ -52,3 +52,19 @@ jobs:
             --image=${{ env.REGISTRY }}/crawler:${{ github.sha }} \
             --region=${{ env.REGION }} \
             --project=${{ env.PROJECT_ID }}
+
+      - name: Set API URL in config.js
+        run: |
+          API_URL=$(gcloud run services describe blogdog-api \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --format="value(status.url)")
+          echo "const API_BASE_URL = \"${API_URL}\";" > public/config.js
+
+      - name: Deploy Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY }}
+          projectId: ambiance-blogdog
+          channelId: live
