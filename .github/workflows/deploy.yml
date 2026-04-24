@@ -62,9 +62,4 @@ jobs:
           echo "const API_BASE_URL = \"${API_URL}\";" > public/config.js
 
       - name: Deploy Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY }}
-          projectId: ambiance-blogdog
-          channelId: live
+        run: npx firebase-tools deploy --only hosting --project=ambiance-blogdog --non-interactive
