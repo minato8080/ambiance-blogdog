@@ -46,12 +46,14 @@ jobs:
             --platform=managed \
             --project=${{ env.PROJECT_ID }}
 
-      - name: Update crawler Cloud Run Job
+      - name: Update crawler Cloud Run Jobs
         run: |
-          gcloud run jobs update blogdog-crawler \
-            --image=${{ env.REGISTRY }}/crawler:${{ github.sha }} \
-            --region=${{ env.REGION }} \
-            --project=${{ env.PROJECT_ID }}
+          for phase in discovery indexer syncer historical recent; do
+            gcloud run jobs update blogdog-crawler-${phase} \
+              --image=${{ env.REGISTRY }}/crawler:${{ github.sha }} \
+              --region=${{ env.REGION }} \
+              --project=${{ env.PROJECT_ID }}
+          done
 
       - name: Set API URL in config.js
         run: |

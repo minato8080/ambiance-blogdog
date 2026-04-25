@@ -36,8 +36,7 @@ ambiance-blogdog/
 │   │   ├── historical.go             # 過去記事の時間断面サンプリング
 │   │   ├── recent.go                 # ブックマーク数0の最新エントリー収集
 │   │   ├── indexer.go                # 記事インデックス構築
-│   │   ├── syncer.go                 # 差分更新
-│   │   └── scheduler.go              # クローラーのスケジューリング管理
+│   │   └── syncer.go                 # 差分更新
 │   ├── rss/
 │   │   └── fetcher.go                # RSSフィード取得・パース
 │   ├── tfidf/
@@ -63,7 +62,11 @@ ambiance-blogdog/
 ├── public/                           # Firebase Hosting デプロイ対象
 │   ├── admin.html                    # 管理画面
 │   ├── viewer.html                   # ビューワー
+│   ├── config.js                     # API URL設定（ローカル: localhost:8080、本番: CI/CDで上書き）
 │   └── style.css
+├── .github/
+│   └── workflows/
+│       └── deploy.yml                # CI/CD（master push → Cloud Run / Firebase デプロイ）
 ├── open-api/
 │   └── similar.yaml                  # OpenAPI仕様
 ├── config/
@@ -89,23 +92,20 @@ ambiance-blogdog/
 | `API_KEY`               | —                 | 管理系エンドポイントの認証キー                |
 | 変数名                        | デフォルト        | 対象クローラー | 説明                                          |
 | ----------------------------- | ----------------- | -------------- | --------------------------------------------- |
-| `CRAWL_INTERVAL_MIN`          | `360`             | Discovery      | 実行間隔（分）                                |
+| `CRAWLER_PHASE`               | `indexer`         | 共通           | 実行フェーズ（discovery/indexer/syncer/historical/recent） |
 | `TFIDF_SAMPLE_SIZE`           | `500`             | Discovery      | TF-IDF コーパスサイズ（記事数）               |
 | `TFIDF_KEYWORD_COUNT`         | `20`              | Discovery      | TF-IDF 抽出キーワード数                       |
-| `SYNC_INTERVAL_MIN`           | `60`              | Indexer        | 実行間隔（分）                                |
 | `INDEX_BATCH_SIZE`            | `50`              | Indexer        | 1回あたりの処理ブログ数                       |
 | `INDEX_MAX_ERROR_COUNT`       | `3`               | Indexer        | error 状態に移行するエラー連続回数            |
 | `MAX_ARTICLES_PER_BLOG`       | `5`               | Indexer/Syncer | 1ブログあたりのインデックス上限記事数         |
 | `SYNC_STALENESS_DAYS`         | `30`              | Syncer         | 差分チェック対象とする最終同期からの経過日数  |
 | `SYNC_BATCH_SIZE`             | `50`              | Syncer         | 1回あたりの処理ブログ数                       |
 | `SYNC_MAX_ERROR_COUNT`        | `3`               | Syncer         | error 状態に移行するエラー連続回数            |
-| `HISTORICAL_INTERVAL_MIN`     | `1440`            | Historical     | 実行間隔（分）                                |
 | `CRAWL_DATE_FROM`             | `2010-01-01`      | Historical     | 過去クロールの対象開始日                      |
 | `CRAWL_DATE_TO`               | `（1年前の日付）` | Historical     | 過去クロールの対象終了日                      |
 | `HISTORICAL_BOOKMARK_MAX`     | `200`             | Historical     | ブックマーク数検索の上限（0〜N のランダム）   |
 | `HISTORICAL_DATE_WINDOW_DAYS` | `7`               | Historical     | 日付範囲検索のウィンドウ幅（日）              |
 | `HISTORICAL_DATE_USERS_MAX`   | `2`               | Historical     | 日付範囲検索のブックマーク数上限（0〜N）      |
-| `RECENT_INTERVAL_MIN`         | `30`              | Recent         | 実行間隔（分）                                |
 | `CRAWL_CONCURRENCY`           | `5`               | 共通           | OpenAI API 並列呼び出し数上限                 |
 | `EMBED_MAX_CHARS`       | `1000`            | Embedding に使用するテキストの最大文字数      |
 | `CORS_ALLOWED_ORIGINS`  | `*`               | 許可CORSオリジン（カンマ区切り）              |
@@ -120,8 +120,14 @@ ambiance-blogdog/
 - **開発環境**: Docker Compose（Go + PostgreSQL + pgvector）
 - **本番環境**:
   - Firebase Hosting — 静的HTML（無料枠）
-  - Cloud Run — Go API（無料枠）
-  - Cloud Run Jobs — Goクローラー（無料枠）
+  - Cloud Run — Go API（`blogdog-api`、asia-northeast1）
+  - Cloud Run Jobs — Goクローラー フェーズ別5ジョブ（無料枠）
+    - `blogdog-crawler-discovery` — 6時間ごと
+    - `blogdog-crawler-indexer` — 1時間ごと
+    - `blogdog-crawler-syncer` — 毎日 0:00 UTC
+    - `blogdog-crawler-historical` — 毎日 1:00 UTC
+    - `blogdog-crawler-recent` — 30分ごと
+  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）
   - Neon — PostgreSQL + pgvector（無料枠）
 
 ### 監視・ログ
@@ -132,5 +138,10 @@ ambiance-blogdog/
 
 ### CI/CD
 
-- GitHub Actions による自動テスト・デプロイ
-- テストカバレッジ: 80% 以上
+- `master` push → GitHub Actions が自動デプロイ
+  1. Docker イメージをビルドして Artifact Registry（asia-northeast1）に push
+  2. Cloud Run（API）をデプロイ
+  3. 全クローラー Jobs のイメージを更新
+  4. Cloud Run の URL を取得して `public/config.js` を生成
+  5. Firebase Hosting にデプロイ
+- 必要な GitHub Secrets: `GCP_SA_KEY`（サービスアカウントJSONのbase64）

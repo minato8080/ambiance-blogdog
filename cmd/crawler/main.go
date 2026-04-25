@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -51,25 +49,42 @@ func run() error {
 	embedClient := embedding.NewClient(cfg.OpenAIAPIKey, cfg.CrawlConcurrency, openai.EmbeddingModel(cfg.EmbeddingModel))
 	rssFetcher := rss.NewFetcher()
 
-	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, keywordRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
-	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount, cfg.CrawlConcurrency)
-	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
-	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)
-	recent := crawler.NewRecent(blogRepo, hatenaPlatformID)
-	sched := crawler.NewScheduler(discoverer, indexer, syncer, historical, recent, cfg.CrawlIntervalMin, cfg.SyncIntervalMin, cfg.HistoricalIntervalMin, cfg.RecentIntervalMin)
+	ctx := context.Background()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// CRAWLER_PHASE で実行フェーズを選択（未指定時は indexer）
+	phase := strings.ToLower(os.Getenv("CRAWLER_PHASE"))
+	if phase == "" {
+		phase = "indexer"
+	}
 
-	sched.Start(ctx)
-	slog.Info("crawler started")
+	slog.Info("crawler: start", "phase", phase)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	var runErr error
+	switch phase {
+	case "discovery":
+		discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, keywordRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
+		runErr = discoverer.Run(ctx)
+	case "indexer":
+		indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount, cfg.CrawlConcurrency)
+		runErr = indexer.Run(ctx)
+	case "syncer":
+		syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
+		runErr = syncer.Run(ctx)
+	case "historical":
+		historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)
+		runErr = historical.Run(ctx)
+	case "recent":
+		recent := crawler.NewRecent(blogRepo, hatenaPlatformID)
+		runErr = recent.Run(ctx)
+	default:
+		return fmt.Errorf("unknown CRAWLER_PHASE: %s", phase)
+	}
 
-	slog.Info("crawler shutting down...")
-	cancel()
+	if runErr != nil {
+		return fmt.Errorf("crawler %s: %w", phase, runErr)
+	}
+
+	slog.Info("crawler: done", "phase", phase)
 	return nil
 }
 
