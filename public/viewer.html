@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f1115" />
     <title>Ambiance Blogdog</title>
     <link rel="stylesheet" href="style.css" />
     <script src="config.js"></script>
@@ -24,12 +25,43 @@
         />
         <button onclick="search()">Search</button>
         <button onclick="pasteInput()">Paste</button>
+        <button class="secondary" onclick="random()">Random</button>
       </div>
 
       <div id="result"></div>
     </div>
 
     <script>
+      function renderResult(data) {
+        let html = `
+          <div class="card">
+            <div class="title">Source Article</div>
+            <div class="title">
+              <a href="${data.source.url}" target="_blank">${data.source.title}</a>
+            </div>
+            ${data.source.blog_name ? `<a href="${data.source.blog_url}" target="_blank" class="blog-name">${data.source.blog_name}</a>` : ""}
+          </div>
+        `;
+
+        data.similar_articles.forEach((a) => {
+          html += `
+            <div class="card">
+              <div class="title">
+                <a href="${a.url}" target="_blank">${a.title}</a>
+              </div>
+              <a href="${a.blog_url}" target="_blank" class="blog-name">${a.blog_name}</a>
+              <div class="meta">
+                similarity: ${a.similarity.toFixed(3)}<br/>
+                tags: ${a.tags.join(", ")}<br/>
+                published: ${new Date(a.published_at).toLocaleDateString()}
+              </div>
+            </div>
+          `;
+        });
+
+        document.getElementById("result").innerHTML = html;
+      }
+
       async function search() {
         const url = document.getElementById("urlInput").value;
         const resBox = document.getElementById("result");
@@ -40,34 +72,26 @@
             `${API_BASE_URL}/similar?url=${encodeURIComponent(url)}`,
           );
           const data = await res.json();
+          renderResult(data);
+        } catch (e) {
+          resBox.innerHTML = "Error fetching data";
+        }
+      }
 
-          let html = `
-            <div class="card">
-              <div class="title">Source Article</div>
-              <div class="title">
-                <a href="${data.source.url}" target="_blank">${data.source.title}</a>
-              </div>
-              ${data.source.blog_name ? `<a href="${data.source.blog_url}" target="_blank" class="blog-name">${data.source.blog_name}</a>` : ""}
-            </div>
-          `;
+      async function random() {
+        const resBox = document.getElementById("result");
+        resBox.innerHTML = "Loading...";
 
-          data.similar_articles.forEach((a) => {
-            html += `
-              <div class="card">
-                <div class="title">
-                  <a href="${a.url}" target="_blank">${a.title}</a>
-                </div>
-                <a href="${a.blog_url}" target="_blank" class="blog-name">${a.blog_name}</a>
-                <div class="meta">
-                  similarity: ${a.similarity.toFixed(3)}<br/>
-                  tags: ${a.tags.join(", ")}<br/>
-                  published: ${new Date(a.published_at).toLocaleDateString()}
-                </div>
-              </div>
-            `;
-          });
-
-          resBox.innerHTML = html;
+        try {
+          const res = await fetch(`${API_BASE_URL}/random`);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            resBox.innerHTML = err.message || "Error fetching random article";
+            return;
+          }
+          const data = await res.json();
+          document.getElementById("urlInput").value = data.source.url;
+          renderResult(data);
         } catch (e) {
           resBox.innerHTML = "Error fetching data";
         }
@@ -75,12 +99,6 @@
 
       function clearInput() {
         document.getElementById("urlInput").value = "";
-      }
-
-      function handleLinkContextMenu(event, url) {
-        event.preventDefault();
-        clearInput();
-        document.getElementById("urlInput").value = url;
       }
 
       async function pasteInput() {

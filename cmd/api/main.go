@@ -63,6 +63,7 @@ func run() error {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, hatenaPlatformID, cfg.EmbedMaxChars))
+	mux.Handle("GET /random", handler.NewRandomHandler(articleRepo, blogRepo))
 	mux.Handle("GET /blogs", middleware.APIKey(cfg.APIKey)(handler.NewBlogsHandler(blogRepo)))
 	mux.Handle("GET /stats", middleware.APIKey(cfg.APIKey)(handler.NewStatsHandler(blogRepo, articleRepo)))
 	mux.Handle("GET /keywords", middleware.APIKey(cfg.APIKey)(handler.NewKeywordsHandler(keywordRepo)))

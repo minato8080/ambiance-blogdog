@@ -20,7 +20,7 @@ input[type="text"], input[type="password"] {
   border: 1px solid #2a2d36;
   background: #1a1d24;
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
 }
 input:focus { outline: none; border-color: #4f7cff; }
 

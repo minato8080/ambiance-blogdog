@@ -156,6 +156,30 @@ func (r *ArticleRepository) SampleSummaries(ctx context.Context, limit int) ([]s
 	return docs, rows.Err()
 }
 
+// FindRandom は embedding を持つ記事からランダムに1件返す。記事が存在しない場合は nil を返す。
+func (r *ArticleRepository) FindRandom(ctx context.Context) (*model.Article, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, blog_id, url, title, summary, tags, embedding, published_at, indexed_at
+		FROM articles
+		WHERE embedding IS NOT NULL
+		ORDER BY RANDOM()
+		LIMIT 1`)
+	a := &model.Article{}
+	var vec pgvector.Vector
+	err := row.Scan(
+		&a.ID, &a.BlogID, &a.URL, &a.Title, &a.Summary, &a.Tags,
+		&vec, &a.PublishedAt, &a.IndexedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("article.FindRandom: %w", err)
+	}
+	a.Embedding = vec.Slice()
+	return a, nil
+}
+
 // CountTotal は全記事数を返す。
 func (r *ArticleRepository) CountTotal(ctx context.Context) (int, error) {
 	var count int

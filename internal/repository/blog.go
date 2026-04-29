@@ -70,6 +70,23 @@ func (r *BlogRepository) FindStale(ctx context.Context, stalenessDays, limit int
 	return scanBlogs(rows)
 }
 
+// FindByID は id でブログを取得する。見つからない場合は nil を返す。
+func (r *BlogRepository) FindByID(ctx context.Context, id string) (*model.Blog, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, platform_id, blog_url, name, status, error_count, last_synced_at, discovered_at
+		FROM blogs WHERE id = $1`, id)
+	b := &model.Blog{}
+	err := row.Scan(&b.ID, &b.PlatformID, &b.BlogURL, &b.Name,
+		&b.Status, &b.ErrorCount, &b.LastSyncedAt, &b.DiscoveredAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("blog.FindByID: %w", err)
+	}
+	return b, nil
+}
+
 // FindByBlogURL は blog_url でブログを取得する。見つからない場合は nil を返す。
 func (r *BlogRepository) FindByBlogURL(ctx context.Context, blogURL string) (*model.Blog, error) {
 	row := r.db.QueryRow(ctx, `

@@ -5,6 +5,7 @@
 | メソッド | パス        | 認証    | 説明                         |
 | -------- | ----------- | ------- | ---------------------------- |
 | `GET`    | `/similar`  | 不要    | 類似記事取得                 |
+| `GET`    | `/random`   | 不要    | ランダム記事 + 類似記事取得  |
 | `GET`    | `/blogs`    | APIキー | 収集済みブログ一覧（管理用） |
 | `GET`    | `/stats`    | APIキー | クロール統計情報（管理用）   |
 | `GET`    | `/keywords` | APIキー | クローラーキーワード一覧（管理用） |
@@ -62,6 +63,51 @@
 | 400            | `INVALID_PARAMS`        | パラメータ不正                      |
 | 422            | `ARTICLE_FETCH_FAILED`  | 対象記事URLのフェッチ・パースに失敗 |
 | 503            | `EMBEDDING_UNAVAILABLE` | Embedding API呼び出し失敗           |
+
+---
+
+## `GET /random` — ランダム記事 + 類似記事取得
+
+インデックス済み記事からランダムに1件選び、その類似記事一覧を返す。`/similar` と同一レスポンス形式。
+
+### クエリパラメータ
+
+| パラメータ | 型  | 必須 | 説明                                |
+| ---------- | --- | ---- | ----------------------------------- |
+| `limit`    | int | ❌   | 返却件数（デフォルト: 10、最大: 20） |
+
+### 処理フロー
+
+```
+1. embedding を持つ記事からランダムに1件取得
+2. pgvector でコサイン類似度検索（対象記事自身・同一ブログを除外）
+3. source + similar_articles を返却
+```
+
+### レスポンス（200 OK）
+
+`/similar` と同形式。
+
+```json
+{
+  "source": {
+    "url": "https://example.hatenablog.com/entry/2024/01/01/post1",
+    "title": "Goで始めるWebAPI開発",
+    "blog_url": "https://example.hatenablog.com",
+    "blog_name": "Example Blog"
+  },
+  "similar_articles": [...],
+  "total": 4
+}
+```
+
+### エラーレスポンス
+
+| HTTPステータス | コード           | 説明                             |
+| -------------- | ---------------- | -------------------------------- |
+| 400            | `INVALID_PARAMS` | パラメータ不正                   |
+| 503            | `NO_ARTICLES`    | インデックス済み記事が存在しない |
+| 500            | `INTERNAL_ERROR` | DB取得失敗                       |
 
 ---
 
