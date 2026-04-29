@@ -7,13 +7,14 @@ body {
   padding: 40px;
 }
 .app { max-width: 960px; margin: 0 auto; }
-.app--narrow { width: 720px; }
-.input { display: flex; gap: 8px; margin-bottom: 20px; }
+.app--narrow { max-width: 720px; }
+.input { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
 .subtitle { font-size: 13px; color: #9aa0a6; margin-bottom: 24px; }
 
 input[type="text"], input[type="password"] {
   flex: 1;
+  min-width: 0;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid #2a2d36;
@@ -51,7 +52,8 @@ a:hover { text-decoration: underline; }
 .meta { font-size: 12px; color: #9aa0a6; }
 
 /* Admin: auth row */
-.auth { display: flex; gap: 8px; margin-bottom: 28px; }
+.auth { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+.auth input { min-width: 180px; }
 #message { font-size: 13px; color: #ca4c4c; margin-top: 8px; min-height: 18px; }
 
 /* Admin: stats */
@@ -79,6 +81,7 @@ a:hover { text-decoration: underline; }
 }
 .filter-btn.active { background: #4f7cff; color: #fff; }
 
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th {
   text-align: left;
@@ -86,6 +89,7 @@ th {
   color: #9aa0a6;
   font-weight: 500;
   border-bottom: 1px solid #2a2d36;
+  white-space: nowrap;
 }
 td { padding: 10px 12px; border-bottom: 1px solid #1e2129; vertical-align: middle; }
 tr:hover td { background: #1a1d24; }
@@ -104,3 +108,18 @@ tr:hover td { background: #1a1d24; }
 .page-btn.active { background: #4f7cff; color: #fff; }
 .page-btn:disabled { opacity: 0.3; cursor: default; }
 .page-info { font-size: 12px; color: #9aa0a6; margin-left: 4px; }
+
+/* Mobile */
+@media (max-width: 640px) {
+  body { padding: 16px; }
+
+  .input { gap: 6px; }
+  .input input[type="text"] { flex-basis: 100%; }
+
+  .auth { gap: 6px; }
+  .auth input { flex-basis: 100%; }
+
+  .filter-row input { max-width: 100%; flex-basis: 100%; }
+
+  .col-errors, .col-synced, .col-discovered { display: none; }
+}

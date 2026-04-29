@@ -43,18 +43,20 @@
           <button class="filter-btn" data-status="indexing" onclick="setStatus(this)">indexing</button>
           <button class="filter-btn" data-status="error"    onclick="setStatus(this)">error</button>
         </div>
+        <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Blog</th>
               <th>Status</th>
-              <th>Errors</th>
-              <th>Last Synced</th>
-              <th>Discovered</th>
+              <th class="col-errors">Errors</th>
+              <th class="col-synced">Last Synced</th>
+              <th class="col-discovered">Discovered</th>
             </tr>
           </thead>
           <tbody id="blogsBody"></tbody>
         </table>
+        </div>
         <div id="blogsEmpty" class="empty" style="display:none">No blogs found.</div>
         <div class="pagination" id="pagination"></div>
       </div>
@@ -193,9 +195,9 @@
               ${b.name ? `<div style="font-size:11px;color:#9aa0a6;margin-top:2px">${b.name}</div>` : ""}
             </td>
             <td><span class="badge badge-${b.status}">${b.status}</span></td>
-            <td style="color:${b.error_count > 0 ? '#ca4c4c' : '#9aa0a6'}">${b.error_count}</td>
-            <td style="color:#9aa0a6">${b.last_synced_at ? fmtDate(b.last_synced_at) : "—"}</td>
-            <td style="color:#9aa0a6">${fmtDate(b.discovered_at)}</td>
+            <td class="col-errors" style="color:${b.error_count > 0 ? '#ca4c4c' : '#9aa0a6'}">${b.error_count}</td>
+            <td class="col-synced" style="color:#9aa0a6">${b.last_synced_at ? fmtDate(b.last_synced_at) : "—"}</td>
+            <td class="col-discovered" style="color:#9aa0a6">${fmtDate(b.discovered_at)}</td>
           </tr>
         `).join("");
 
