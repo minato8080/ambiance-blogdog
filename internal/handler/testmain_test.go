@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pgxvector "github.com/pgvector/pgvector-go/pgx"
+	openai "github.com/sashabaranov/go-openai"
 
 	"github.com/minato8080/ambiance-blogdog/internal/embedding"
 	"github.com/minato8080/ambiance-blogdog/internal/handler"
@@ -45,10 +46,10 @@ func buildTestServer(t *testing.T) http.Handler {
 	if openaiKey == "" {
 		openaiKey = "dummy"
 	}
-	embedClient := embedding.NewClient(openaiKey, 1)
+	embedClient := embedding.NewClient(openaiKey, 1, openai.SmallEmbedding3)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, testPlatformID))
+	mux.Handle("GET /similar", handler.NewSimilarHandler(articleRepo, blogRepo, embedClient, testPlatformID, 1000))
 	mux.Handle("GET /blogs", middleware.APIKey(apiKey)(handler.NewBlogsHandler(blogRepo)))
 	mux.Handle("GET /stats", middleware.APIKey(apiKey)(handler.NewStatsHandler(blogRepo, articleRepo)))
 	return mux

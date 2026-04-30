@@ -114,7 +114,7 @@ func TestArticleRepository_SearchSimilar(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, a))
 	}
 
-	results, err := repo.SearchSimilar(ctx, make([]float32, 1536), articles[0].URL, 5)
+	results, err := repo.SearchSimilar(ctx, make([]float32, 1536), articles[0].URL, "", 5)
 	require.NoError(t, err)
 	// excludeURL は結果に含まれない
 	for _, r := range results {
