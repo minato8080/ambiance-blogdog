@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minato8080/ambiance-blogdog/internal/embedding"
 	"github.com/minato8080/ambiance-blogdog/internal/model"
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
 	"github.com/minato8080/ambiance-blogdog/internal/rss"
@@ -20,7 +19,7 @@ type Indexer struct {
 	blogRepo      *repository.BlogRepository
 	articleRepo   *repository.ArticleRepository
 	rssFetcher    *rss.Fetcher
-	embedClient   *embedding.Client
+	embedClient   embedder
 	maxArticles   int
 	batchSize     int
 	maxErrorCount int
@@ -31,7 +30,7 @@ func NewIndexer(
 	blogRepo *repository.BlogRepository,
 	articleRepo *repository.ArticleRepository,
 	rssFetcher *rss.Fetcher,
-	embedClient *embedding.Client,
+	embedClient embedder,
 	maxArticles, batchSize, maxErrorCount, concurrency int,
 ) *Indexer {
 	return &Indexer{
@@ -82,7 +81,7 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 	}
 
 	feedURL := blog.BlogURL + "/feed"
-	articles, err := ix.rssFetcher.Fetch(ctx, feedURL, ix.maxArticles)
+	feedTitle, articles, err := ix.rssFetcher.Fetch(ctx, feedURL, ix.maxArticles)
 	if err != nil {
 		blog.ErrorCount++
 		if blog.ErrorCount >= ix.maxErrorCount {
@@ -90,6 +89,12 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 			return ix.blogRepo.Delete(ctx, blog.ID)
 		}
 		return ix.blogRepo.UpdateStatus(ctx, blog.ID, model.BlogStatusPending, blog.ErrorCount, nil)
+	}
+
+	if blog.Name == "" && feedTitle != "" {
+		if err := ix.blogRepo.UpdateName(ctx, blog.ID, feedTitle); err != nil {
+			slog.Warn("indexer: blog name update failed", "blog_url", blog.BlogURL, "error", err)
+		}
 	}
 
 	for _, a := range articles {

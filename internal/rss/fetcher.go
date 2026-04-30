@@ -26,14 +26,16 @@ func NewFetcher() *Fetcher {
 	return &Fetcher{parser: gofeed.NewParser()}
 }
 
-// Fetch はフィード URL を取得・パースし、新しい順に最大 maxArticles 件の記事を返す。
-func (f *Fetcher) Fetch(ctx context.Context, feedURL string, maxArticles int) ([]*Article, error) {
+// Fetch はフィード URL を取得・パースし、フィードタイトルと新しい順に最大 maxArticles 件の記事を返す。
+func (f *Fetcher) Fetch(ctx context.Context, feedURL string, maxArticles int) (feedTitle string, articles []*Article, err error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	feed, err := f.parser.ParseURLWithContext(feedURL, reqCtx)
 	if err != nil {
-		return nil, fmt.Errorf("rss.Fetch %s: %w", feedURL, err)
+		return "", nil, fmt.Errorf("rss.Fetch %s: %w", feedURL, err)
 	}
+
+	feedTitle = feed.Title
 
 	// 公開日時で降順ソート
 	items := feed.Items
@@ -44,11 +46,11 @@ func (f *Fetcher) Fetch(ctx context.Context, feedURL string, maxArticles int) ([
 		limit = len(items)
 	}
 
-	articles := make([]*Article, 0, limit)
+	articles = make([]*Article, 0, limit)
 	for _, item := range items[:limit] {
 		articles = append(articles, toArticle(item))
 	}
-	return articles, nil
+	return feedTitle, articles, nil
 }
 
 func toArticle(item *gofeed.Item) *Article {

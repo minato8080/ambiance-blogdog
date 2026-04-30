@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minato8080/ambiance-blogdog/internal/embedding"
 	"github.com/minato8080/ambiance-blogdog/internal/model"
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
 	"github.com/minato8080/ambiance-blogdog/internal/rss"
@@ -19,7 +18,7 @@ type Syncer struct {
 	blogRepo      *repository.BlogRepository
 	articleRepo   *repository.ArticleRepository
 	rssFetcher    *rss.Fetcher
-	embedClient   *embedding.Client
+	embedClient   embedder
 	stalenessDays int
 	maxArticles   int
 	batchSize     int
@@ -30,7 +29,7 @@ func NewSyncer(
 	blogRepo *repository.BlogRepository,
 	articleRepo *repository.ArticleRepository,
 	rssFetcher *rss.Fetcher,
-	embedClient *embedding.Client,
+	embedClient embedder,
 	stalenessDays, maxArticles, batchSize, maxErrorCount int,
 ) *Syncer {
 	return &Syncer{
@@ -73,7 +72,7 @@ func (s *Syncer) Run(ctx context.Context) error {
 
 func (s *Syncer) syncBlog(ctx context.Context, blog *model.Blog) error {
 	feedURL := blog.BlogURL + "/feed"
-	articles, err := s.rssFetcher.Fetch(ctx, feedURL, s.maxArticles)
+	feedTitle, articles, err := s.rssFetcher.Fetch(ctx, feedURL, s.maxArticles)
 	if err != nil {
 		blog.ErrorCount++
 		status := model.BlogStatusReady
@@ -82,6 +81,12 @@ func (s *Syncer) syncBlog(ctx context.Context, blog *model.Blog) error {
 			slog.Warn("syncer: blog marked as error", "blog_url", blog.BlogURL, "error", err)
 		}
 		return s.blogRepo.UpdateStatus(ctx, blog.ID, status, blog.ErrorCount, blog.LastSyncedAt)
+	}
+
+	if blog.Name == "" && feedTitle != "" {
+		if err := s.blogRepo.UpdateName(ctx, blog.ID, feedTitle); err != nil {
+			slog.Warn("syncer: blog name update failed", "blog_url", blog.BlogURL, "error", err)
+		}
 	}
 
 	for _, a := range articles {

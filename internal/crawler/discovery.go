@@ -138,7 +138,8 @@ func (d *Discoverer) crawlSource(ctx context.Context, srcURL string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !d.validateFeed(ctx, blogURL) {
+		feedTitle, ok := d.validateFeed(ctx, blogURL)
+		if !ok {
 			slog.Debug("discovery: invalid blog feed", "blog_url", blogURL)
 			continue
 		}
@@ -146,7 +147,7 @@ func (d *Discoverer) crawlSource(ctx context.Context, srcURL string) error {
 			ID:           ulid.Make().String(),
 			PlatformID:   d.platformID,
 			BlogURL:      blogURL,
-			Name:         "",
+			Name:         feedTitle,
 			Status:       model.BlogStatusPending,
 			DiscoveredAt: time.Now(),
 		}
@@ -157,13 +158,14 @@ func (d *Discoverer) crawlSource(ctx context.Context, srcURL string) error {
 	return nil
 }
 
-func (d *Discoverer) validateFeed(ctx context.Context, blogURL string) bool {
+func (d *Discoverer) validateFeed(ctx context.Context, blogURL string) (feedTitle string, ok bool) {
 	feedURL := blogURL + "/feed"
-	if _, err := d.rssFetcher.Fetch(ctx, feedURL, 1); err != nil {
+	title, _, err := d.rssFetcher.Fetch(ctx, feedURL, 1)
+	if err != nil {
 		slog.Debug("discovery: feed validation failed", "blog_url", blogURL, "feed_url", feedURL, "error", err)
-		return false
+		return "", false
 	}
-	return true
+	return title, true
 }
 
 func (d *Discoverer) extractBlogURLs(srcURL string, doc *goquery.Document) []string {

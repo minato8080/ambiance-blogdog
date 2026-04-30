@@ -113,6 +113,15 @@ func (r *BlogRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// UpdateName は name が空のブログのみ name を更新する。
+func (r *BlogRepository) UpdateName(ctx context.Context, id, name string) error {
+	_, err := r.db.Exec(ctx, `UPDATE blogs SET name = $2 WHERE id = $1 AND name = ''`, id, name)
+	if err != nil {
+		return fmt.Errorf("blog.UpdateName: %w", err)
+	}
+	return nil
+}
+
 // UpdateStatus は status・error_count・last_synced_at を更新する。
 func (r *BlogRepository) UpdateStatus(ctx context.Context, id string, status model.BlogStatus, errorCount int, lastSyncedAt *time.Time) error {
 	_, err := r.db.Exec(ctx, `

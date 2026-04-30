@@ -11,30 +11,30 @@
 
 ## 外部サービス
 
-| サービス                  | 用途                                               | 備考           |
-| ------------------------- | -------------------------------------------------- | -------------- |
-| **OpenAI Embeddings API** | `text-embedding-3-small` でベクトル生成            | APIキー必須    |
-| **Neon**                  | PostgreSQL + pgvector（ベクトルDB）                | 無料枠         |
-| **Firebase Hosting**      | 管理画面・ビューワー（静的HTML）                   | 無料枠         |
-| **GCP Cloud Run**         | Go API サーバー（`blogdog-api`、asia-northeast1）  | —              |
-| **GCP Cloud Run Jobs**    | クローラー フェーズ別5ジョブ                       | —              |
-| **GCP Cloud Scheduler**   | Cloud Run Jobs の定期実行トリガー                  | —              |
-| **GCP Artifact Registry** | Dockerイメージ保存（asia-northeast1）              | —              |
-| **GitHub Actions**        | CI/CD（master push → 自動デプロイ）                | —              |
+| サービス                  | 用途                                              | 備考        |
+| ------------------------- | ------------------------------------------------- | ----------- |
+| **OpenAI Embeddings API** | `text-embedding-3-small` でベクトル生成           | APIキー必須 |
+| **Neon**                  | PostgreSQL + pgvector（ベクトルDB）               | 無料枠      |
+| **Firebase Hosting**      | 管理画面・ビューワー（静的HTML）                  | 無料枠      |
+| **GCP Cloud Run**         | Go API サーバー（`blogdog-api`、asia-northeast1） | —           |
+| **GCP Cloud Run Jobs**    | クローラー フェーズ別5ジョブ                      | —           |
+| **GCP Cloud Scheduler**   | Cloud Run Jobs の定期実行トリガー                 | —           |
+| **GCP Artifact Registry** | Dockerイメージ保存（asia-northeast1）             | —           |
+| **GitHub Actions**        | CI/CD（master push → 自動デプロイ）               | —           |
 
 ## 技術スタック
 
-| 項目               | 採用技術                                       |
-| ------------------ | ---------------------------------------------- |
-| 言語               | Go 1.22+                                       |
-| DB                 | PostgreSQL 15+ with pgvector                   |
-| HTTPフレームワーク | `net/http`（標準ライブラリ）                   |
-| Embeddings         | OpenAI text-embedding-3-small                  |
-| DBドライバ         | `github.com/jackc/pgx/v5`                      |
-| RSSパーサー        | `github.com/mmcdole/gofeed`                    |
-| HTMLパーサー       | `github.com/PuerkitoBio/goquery`               |
-| OpenAI SDK         | `github.com/sashabaranov/go-openai`            |
-| コンテナ           | Docker / docker-compose                        |
+| 項目               | 採用技術                            |
+| ------------------ | ----------------------------------- |
+| 言語               | Go 1.22+                            |
+| DB                 | PostgreSQL 15+ with pgvector        |
+| HTTPフレームワーク | `net/http`（標準ライブラリ）        |
+| Embeddings         | OpenAI text-embedding-3-small       |
+| DBドライバ         | `github.com/jackc/pgx/v5`           |
+| RSSパーサー        | `github.com/mmcdole/gofeed`         |
+| HTMLパーサー       | `github.com/PuerkitoBio/goquery`    |
+| OpenAI SDK         | `github.com/sashabaranov/go-openai` |
+| コンテナ           | Docker / docker-compose             |
 
 ## セットアップ
 
@@ -70,35 +70,35 @@ make db-reset DB_URL=pgx5://user:pass@host:5432/dbname?sslmode=disable
 
 ### 共通
 
-| 変数名                  | デフォルト | 説明                                          |
-| ----------------------- | ---------- | --------------------------------------------- |
-| `PORT`                  | `8080`     | サーバーポート                                |
-| `DATABASE_URL`          | —          | PostgreSQL接続文字列                          |
-| `OPENAI_API_KEY`        | —          | OpenAI APIキー                                |
-| `API_KEY`               | —          | 管理系エンドポイントの認証キー                |
-| `CRAWL_CONCURRENCY`     | `5`        | OpenAI API並列呼び出し数上限                  |
-| `EMBED_MAX_CHARS`       | `1000`     | Embeddingに使用するテキストの最大文字数       |
-| `CORS_ALLOWED_ORIGINS`  | `*`        | 許可CORSオリジン（カンマ区切り）              |
-| `LOG_LEVEL`             | `info`     | ログレベル                                    |
+| 変数名                 | デフォルト | 説明                                    |
+| ---------------------- | ---------- | --------------------------------------- |
+| `PORT`                 | `8080`     | サーバーポート                          |
+| `DATABASE_URL`         | —          | PostgreSQL接続文字列                    |
+| `OPENAI_API_KEY`       | —          | OpenAI APIキー                          |
+| `API_KEY`              | —          | 管理系エンドポイントの認証キー          |
+| `CRAWL_CONCURRENCY`    | `5`        | OpenAI API並列呼び出し数上限            |
+| `EMBED_MAX_CHARS`      | `1000`     | Embeddingに使用するテキストの最大文字数 |
+| `CORS_ALLOWED_ORIGINS` | `*`        | 許可CORSオリジン（カンマ区切り）        |
+| `LOG_LEVEL`            | `info`     | ログレベル                              |
 
 ### クローラー固有
 
-| 変数名                        | デフォルト        | 対象フェーズ   | 説明                                                        |
-| ----------------------------- | ----------------- | -------------- | ----------------------------------------------------------- |
-| `CRAWLER_PHASE`               | `indexer`         | 共通           | 実行フェーズ（discovery/indexer/syncer/historical/recent）  |
-| `TFIDF_SAMPLE_SIZE`           | `500`             | discovery      | TF-IDF コーパスサイズ（記事数）                             |
-| `TFIDF_KEYWORD_COUNT`         | `20`              | discovery      | TF-IDF 抽出キーワード数                                     |
-| `INDEX_BATCH_SIZE`            | `50`              | indexer        | 1回あたりの処理ブログ数                                     |
-| `INDEX_MAX_ERROR_COUNT`       | `3`               | indexer        | error 状態に移行するエラー連続回数                          |
-| `MAX_ARTICLES_PER_BLOG`       | `5`               | indexer/syncer | 1ブログあたりのインデックス上限記事数                       |
-| `SYNC_STALENESS_DAYS`         | `30`              | syncer         | 差分チェック対象とする最終同期からの経過日数                |
-| `SYNC_BATCH_SIZE`             | `50`              | syncer         | 1回あたりの処理ブログ数                                     |
-| `SYNC_MAX_ERROR_COUNT`        | `3`               | syncer         | error 状態に移行するエラー連続回数                          |
-| `CRAWL_DATE_FROM`             | `2010-01-01`      | historical     | 過去クロールの対象開始日                                    |
-| `CRAWL_DATE_TO`               | `（1年前の日付）` | historical     | 過去クロールの対象終了日                                    |
-| `HISTORICAL_BOOKMARK_MAX`     | `200`             | historical     | ブックマーク数検索の上限（0〜N のランダム）                 |
-| `HISTORICAL_DATE_WINDOW_DAYS` | `7`               | historical     | 日付範囲検索のウィンドウ幅（日）                            |
-| `HISTORICAL_DATE_USERS_MAX`   | `2`               | historical     | 日付範囲検索のブックマーク数上限（0〜N）                    |
+| 変数名                        | デフォルト        | 対象フェーズ   | 説明                                                       |
+| ----------------------------- | ----------------- | -------------- | ---------------------------------------------------------- |
+| `CRAWLER_PHASE`               | `indexer`         | 共通           | 実行フェーズ（discovery/indexer/syncer/historical/recent） |
+| `TFIDF_SAMPLE_SIZE`           | `500`             | discovery      | TF-IDF コーパスサイズ（記事数）                            |
+| `TFIDF_KEYWORD_COUNT`         | `20`              | discovery      | TF-IDF 抽出キーワード数                                    |
+| `INDEX_BATCH_SIZE`            | `50`              | indexer        | 1回あたりの処理ブログ数                                    |
+| `INDEX_MAX_ERROR_COUNT`       | `3`               | indexer        | error 状態に移行するエラー連続回数                         |
+| `MAX_ARTICLES_PER_BLOG`       | `5`               | indexer/syncer | 1ブログあたりのインデックス上限記事数                      |
+| `SYNC_STALENESS_DAYS`         | `30`              | syncer         | 差分チェック対象とする最終同期からの経過日数               |
+| `SYNC_BATCH_SIZE`             | `50`              | syncer         | 1回あたりの処理ブログ数                                    |
+| `SYNC_MAX_ERROR_COUNT`        | `3`               | syncer         | error 状態に移行するエラー連続回数                         |
+| `CRAWL_DATE_FROM`             | `2010-01-01`      | historical     | 過去クロールの対象開始日                                   |
+| `CRAWL_DATE_TO`               | `（1年前の日付）` | historical     | 過去クロールの対象終了日                                   |
+| `HISTORICAL_BOOKMARK_MAX`     | `200`             | historical     | ブックマーク数検索の上限（0〜N のランダム）                |
+| `HISTORICAL_DATE_WINDOW_DAYS` | `7`               | historical     | 日付範囲検索のウィンドウ幅（日）                           |
+| `HISTORICAL_DATE_USERS_MAX`   | `2`               | historical     | 日付範囲検索のブックマーク数上限（0〜N）                   |
 
 ## API
 
@@ -146,13 +146,53 @@ GET /similar?url=https://example.hatenablog.com/entry/...&limit=5
 
 `CRAWLER_PHASE` 環境変数でフェーズを切り替えて実行する。
 
-| フェーズ      | `CRAWLER_PHASE` | 処理                                            | 実行間隔  |
-| ------------- | --------------- | ----------------------------------------------- | --------- |
-| ブログ発見    | `discovery`     | はてなブログ公開ページからブログURLを発見・登録 | 6時間     |
-| インデックス  | `indexer`       | `pending` ブログのRSSを取得し記事をベクトル化   | 1時間     |
-| 差分更新      | `syncer`        | `ready` ブログの差分チェック・更新              | 24時間    |
-| 時間断面      | `historical`    | 過去記事のランダムサンプリング収集              | 24時間    |
-| 最新記事      | `recent`        | ブックマーク数0の新着記事からブログを収集       | 30分      |
+| フェーズ     | `CRAWLER_PHASE` | 処理                                            | 実行間隔 |
+| ------------ | --------------- | ----------------------------------------------- | -------- |
+| ブログ発見   | `discovery`     | はてなブログ公開ページからブログURLを発見・登録 | 6時間    |
+| インデックス | `indexer`       | `pending` ブログのRSSを取得し記事をベクトル化   | 1時間    |
+| 差分更新     | `syncer`        | `ready` ブログの差分チェック・更新              | 24時間   |
+| 時間断面     | `historical`    | 過去記事のランダムサンプリング収集              | 24時間   |
+| 最新記事     | `recent`        | ブックマーク数0の新着記事からブログを収集       | 30分     |
+
+## 開発環境コマンド集
+
+### `psql` がローカル環境に入っていない場合は、DBコンテナ内から接続します。
+
+```bash
+docker compose exec db psql -U blogdog -d blogdog
+```
+
+### クローラー（開発環境）
+
+DBとAPIサーバー起動（前提）  
+ docker compose up db -d
+
+各フェーズを順番に実行
+
+#### .env を読み込んでローカルDB向けに上書き
+
+export $(grep -v '^#' .env | xargs)  
+ export DATABASE_URL=postgres://blogdog:blogdog@localhost:5432/blogdog?sslmode=disable
+
+#### Phase 1: ブログURL発見
+
+CRAWLER_PHASE=discovery go run ./cmd/crawler/
+
+#### Phase 4: 新着ゼロブクマ収集（discovery前でも動く）
+
+CRAWLER_PHASE=recent go run ./cmd/crawler/
+
+#### Phase 5: 過去記事サンプリング
+
+CRAWLER_PHASE=historical go run ./cmd/crawler/
+
+#### Phase 2: 記事インデックス構築（pendingブログが溜まってから）
+
+CRAWLER_PHASE=indexer go run ./cmd/crawler/
+
+#### Phase 3: 差分更新（readyブログが存在してから）
+
+CRAWLER_PHASE=syncer go run ./cmd/crawler/
 
 ## デプロイ（本番）
 
@@ -179,9 +219,9 @@ Neon              ── PostgreSQL + pgvector
 
 必要なGitHub Secrets:
 
-| Secret名      | 説明                               |
-| ------------- | ---------------------------------- |
-| `GCP_SA_KEY`  | サービスアカウントJSONのbase64エンコード |
+| Secret名     | 説明                                     |
+| ------------ | ---------------------------------------- |
+| `GCP_SA_KEY` | サービスアカウントJSONのbase64エンコード |
 
 ## ライセンス
 

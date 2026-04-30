@@ -49,7 +49,7 @@
               <div class="title">
                 <a href="${a.url}" target="_blank">${a.title}</a>
               </div>
-              <a href="${a.blog_url}" target="_blank" class="blog-name">${a.blog_name}</a>
+              ${a.blog_name ? `<a href="${a.blog_url}" target="_blank" class="blog-name">${a.blog_name}</a>` : ""}
               <div class="meta">
                 similarity: ${a.similarity.toFixed(3)}<br/>
                 tags: ${a.tags.join(", ")}<br/>
