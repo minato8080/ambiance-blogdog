@@ -2,13 +2,15 @@
 
 クローラーは `CRAWLER_PHASE` 環境変数で実行フェーズを切り替え、1回実行して終了する（Cloud Run Jobs モデル）。
 
-| フェーズ | `CRAWLER_PHASE` | 役割               | Cloud Scheduler 間隔 |
-| -------- | --------------- | ------------------ | -------------------- |
-| 1        | `discovery`     | ブログURL発見・登録 | 毎週日曜 3:00 JST    |
-| 2        | `indexer`       | 記事インデックス構築 | 毎週日曜 4:00 JST   |
-| 3        | `syncer`        | 差分更新           | 毎週日曜 5:00 JST    |
-| 4        | `recent`        | 新着ゼロブクマ収集 | 毎週日曜 6:00 JST    |
-| 5        | `historical`    | 過去記事サンプリング | 毎週日曜 5:30 JST   |
+Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / historical / recent を `gather` フェーズに統合し3ジョブ構成にしている。
+
+| フェーズ | `CRAWLER_PHASE` | 役割                                        | Cloud Scheduler 間隔 |
+| -------- | --------------- | ------------------------------------------- | -------------------- |
+| 1        | `gather`        | ブログURL発見・登録（discovery→historical→recent を順次実行） | 毎週日曜 3:00 JST |
+| 2        | `indexer`       | 記事インデックス構築                        | 毎週日曜 4:00 JST    |
+| 3        | `syncer`        | 差分更新                                    | 毎週日曜 5:00 JST    |
+
+> 内部サブフェーズ（`discovery` / `historical` / `recent`）は `CRAWLER_PHASE=gather` 実行時に順次呼び出される。エラーは `errors.Join` でまとめて返す。
 
 ---
 

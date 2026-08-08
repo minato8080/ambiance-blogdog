@@ -36,10 +36,10 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 
 ### Cloud Scheduler
 
-5ジョブ設定（無料枠は3ジョブ/月まで、以降 $0.10/ジョブ/月）。
+3ジョブ構成（gather / indexer / syncer）。無料枠（3ジョブ/月）以内に収まるため追加課金なし。
 
-- (5 − 3) × $0.10 = **$0.20/月**
-- 実行頻度に関わらずジョブが存在する限り課金されるため、一時停止中も同額発生していた。
+- **$0/月**
+- 以前は discovery / indexer / syncer / historical / recent の5ジョブで $0.20/月 発生していたが、gather への統合で無料枠内に収まるようになった。
 
 ### OpenAI Embeddings API（`text-embedding-3-small`, $0.02 / 1M tokens）
 
@@ -81,11 +81,11 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 | 項目 | 月額目安 |
 | ---- | -------- |
 | Cloud Run Jobs（クローラー） | $0（無料枠内） |
-| Cloud Scheduler | $0.20 |
+| Cloud Scheduler | $0（無料枠3ジョブ以内） |
 | OpenAI Embeddings API | $0.01未満 |
 | Cloud Run（APIサーバー） | $0（無料枠内、要トラフィック確認） |
 | Neon（PostgreSQL） | 未確認（ストレージ300〜350MB、無料枠に近い可能性） |
 | Firebase Hosting | $0 |
 | **合計** | **概ね $0.2〜1/月**（Neon・APIトラフィックが無料枠を超えない前提） |
 
-クローラーを週1回にしたことで、GCPの計算コスト自体はもともと無料枠内だったため大きくは変わらないが、**Neonへの書き込み量とOpenAI APIの呼び出し頻度が下がる**ことで、データ増加ペース・API課金の両方を抑えられる。
+クローラーを週1回にしたことで、GCPの計算コスト自体はもともと無料枠内だったため大きくは変わらないが、**Neonへの書き込み量とOpenAI APIの呼び出し頻度が下がる**ことで、データ増加ペース・API課金の両方を抑えられる。またdiscovery/historical/recentをgatherに統合したことでCloud Schedulerが無料枠（3ジョブ）に収まり、$0.20/月の削減になった。

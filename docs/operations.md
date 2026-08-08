@@ -21,7 +21,7 @@ gcloud scheduler jobs list --location=asia-northeast1 --project=ambiance-blogdog
 ### 全ジョブ停止
 
 ```powershell
-foreach ($job in @("discovery", "indexer", "syncer", "historical", "recent")) {
+foreach ($job in @("gather", "indexer", "syncer")) {
   gcloud scheduler jobs pause "blogdog-crawler-$job" --location=asia-northeast1 --project=ambiance-blogdog
 }
 ```
@@ -29,7 +29,7 @@ foreach ($job in @("discovery", "indexer", "syncer", "historical", "recent")) {
 ### 全ジョブ再開
 
 ```powershell
-foreach ($job in @("discovery", "indexer", "syncer", "historical", "recent")) {
+foreach ($job in @("gather", "indexer", "syncer")) {
   gcloud scheduler jobs resume "blogdog-crawler-$job" --location=asia-northeast1 --project=ambiance-blogdog
 }
 ```
@@ -44,7 +44,7 @@ gcloud scheduler jobs pause blogdog-crawler-{フェーズ名} --location=asia-no
 gcloud scheduler jobs resume blogdog-crawler-{フェーズ名} --location=asia-northeast1 --project=ambiance-blogdog
 ```
 
-フェーズ名: `discovery` / `indexer` / `syncer` / `historical` / `recent`
+フェーズ名: `gather` / `indexer` / `syncer`
 
 ---
 

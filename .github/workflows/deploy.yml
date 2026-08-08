@@ -48,7 +48,7 @@ jobs:
 
       - name: Update crawler Cloud Run Jobs
         run: |
-          for phase in discovery indexer syncer historical recent; do
+          for phase in gather indexer syncer; do
             gcloud run jobs update blogdog-crawler-${phase} \
               --image=${{ env.REGISTRY }}/crawler:${{ github.sha }} \
               --region=${{ env.REGION }} \

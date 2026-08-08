@@ -106,7 +106,7 @@ ambiance-blogdog/
 
 | 変数名                        | デフォルト        | 対象フェーズ    | 説明                                                        |
 | ----------------------------- | ----------------- | --------------- | ----------------------------------------------------------- |
-| `CRAWLER_PHASE`               | `indexer`         | 共通            | 実行フェーズ（discovery/indexer/syncer/historical/recent）  |
+| `CRAWLER_PHASE`               | `indexer`         | 共通            | 実行フェーズ（gather/indexer/syncer）                       |
 | `TFIDF_SAMPLE_SIZE`           | `500`             | discovery       | TF-IDF コーパスサイズ（記事数）                             |
 | `TFIDF_KEYWORD_COUNT`         | `20`              | discovery       | TF-IDF 抽出キーワード数                                     |
 | `INDEX_BATCH_SIZE`            | `50`              | indexer         | 1回あたりの処理ブログ数                                     |
@@ -137,13 +137,11 @@ ambiance-blogdog/
 - **本番環境**:
   - Firebase Hosting — 静的HTML（無料枠）
   - Cloud Run — Go API（`blogdog-api`、asia-northeast1）
-  - Cloud Run Jobs — Goクローラー フェーズ別5ジョブ（毎週日曜 JST、パイプライン順に実行）
-    - `blogdog-crawler-discovery` — 毎週日曜 3:00 JST
+  - Cloud Run Jobs — Goクローラー 3ジョブ（毎週日曜 JST、パイプライン順に実行）
+    - `blogdog-crawler-gather` — 毎週日曜 3:00 JST（discovery → historical → recent を順次実行）
     - `blogdog-crawler-indexer` — 毎週日曜 4:00 JST
     - `blogdog-crawler-syncer` — 毎週日曜 5:00 JST
-    - `blogdog-crawler-historical` — 毎週日曜 5:30 JST
-    - `blogdog-crawler-recent` — 毎週日曜 6:00 JST
-  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。運用コマンドは `docs/operations.md` を参照
+  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。無料枠3ジョブ以内に収まる。運用コマンドは `docs/operations.md` を参照
   - Neon — PostgreSQL + pgvector（無料枠）
 
 ### 監視・ログ
