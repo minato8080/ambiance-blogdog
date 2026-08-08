@@ -137,13 +137,13 @@ ambiance-blogdog/
 - **本番環境**:
   - Firebase Hosting — 静的HTML（無料枠）
   - Cloud Run — Go API（`blogdog-api`、asia-northeast1）
-  - Cloud Run Jobs — Goクローラー フェーズ別5ジョブ
-    - `blogdog-crawler-discovery` — 6時間ごと
-    - `blogdog-crawler-indexer` — 1時間ごと
-    - `blogdog-crawler-syncer` — 毎日 0:00 UTC
-    - `blogdog-crawler-historical` — 毎日 1:00 UTC
-    - `blogdog-crawler-recent` — 30分ごと
-  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）
+  - Cloud Run Jobs — Goクローラー フェーズ別5ジョブ（毎週日曜 JST、パイプライン順に実行）
+    - `blogdog-crawler-discovery` — 毎週日曜 3:00 JST
+    - `blogdog-crawler-indexer` — 毎週日曜 4:00 JST
+    - `blogdog-crawler-syncer` — 毎週日曜 5:00 JST
+    - `blogdog-crawler-historical` — 毎週日曜 5:30 JST
+    - `blogdog-crawler-recent` — 毎週日曜 6:00 JST
+  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。運用コマンドは `docs/operations.md` を参照
   - Neon — PostgreSQL + pgvector（無料枠）
 
 ### 監視・ログ

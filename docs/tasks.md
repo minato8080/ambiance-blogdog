@@ -102,3 +102,21 @@
 - [x] `handler/similar` の統合テストを作成する
 - [x] `handler/blogs`, `handler/stats` の統合テストを作成する
 - [x] クローラーの E2E テストを作成する（実際のはてなブログデータ使用）
+
+## 10. Cloud Scheduler 3本化（discovery/historical/recent → gather統合）
+
+クローラーを週1回稼働に変更した際、Cloud Scheduler の無料枠（3ジョブ/月）に収めるため、discovery/historical/recentを1つの`gather`フェーズに統合し、Cloud Run Jobs / Cloud Scheduler を5本→3本（gather/indexer/syncer）に削減する。
+
+- [x] `cmd/crawler/main.go` に `CRAWLER_PHASE=gather`（discovery→historical→recentを順次実行、エラーは`errors.Join`でまとめて返す）を追加
+- [ ] `go build ./...` をWSLで検証（Windows側にgoコマンドが無く未検証）
+- [ ] `.github/workflows/deploy.yml` の crawler Jobs 更新ループを `discovery indexer syncer historical recent` → `gather indexer syncer` に変更
+- [ ] `docs/operations.md` の全停止・再開・個別操作コマンドのジョブ名一覧を `gather indexer syncer` に変更
+- [ ] `docs/design-infrastructure.md` / `docs/design-function-crawler.md` を3グループ構成（gather=discovery+historical+recent統合）に書き直す
+- [ ] `docs/cost-estimate.md` のCloud Scheduler試算を3ジョブ($0/月、無料枠内)に更新
+- [ ] GCPインフラ移行（**破壊的操作あり・要事前確認**）
+  - [ ] 新コードをmasterにデプロイしてイメージ反映
+  - [ ] `blogdog-crawler-gather` Cloud Run Job作成（1vCPU/512Mi/timeout600s、既存ジョブと同じenv構成）
+  - [ ] `blogdog-crawler-gather` 用 Cloud Scheduler（毎週日曜3:00 JST）作成
+  - [ ] `blogdog-crawler-gather` を手動実行して動作確認
+  - [ ] 問題なければ `blogdog-crawler-discovery` / `blogdog-crawler-historical` / `blogdog-crawler-recent` のCloud Run Jobs・Cloud Schedulerを削除
+  - [ ] `gcloud scheduler jobs list` で最終的に3ジョブ(gather/indexer/syncer)になっていることを確認

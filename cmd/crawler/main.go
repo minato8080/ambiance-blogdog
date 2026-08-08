@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,6 +20,11 @@ import (
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
 	"github.com/minato8080/ambiance-blogdog/internal/rss"
 )
+
+// gatherPhases は CRAWLER_PHASE=gather 実行時に順番に実行するフェーズ群。
+// discovery/historical/recent はいずれも新規ブログURLを pending として登録する役割のため、
+// Cloud Run Jobs / Cloud Scheduler を1系統にまとめている。
+var gatherPhases = []string{"discovery", "historical", "recent"}
 
 const hatenaPlatformID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
@@ -49,6 +55,20 @@ func run() error {
 	embedClient := embedding.NewClient(cfg.OpenAIAPIKey, cfg.CrawlConcurrency, openai.EmbeddingModel(cfg.EmbeddingModel))
 	rssFetcher := rss.NewFetcher()
 
+	discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, keywordRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
+	indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount, cfg.CrawlConcurrency)
+	syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
+	historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)
+	recent := crawler.NewRecent(blogRepo, hatenaPlatformID)
+
+	runners := map[string]func(context.Context) error{
+		"discovery":  discoverer.Run,
+		"indexer":    indexer.Run,
+		"syncer":     syncer.Run,
+		"historical": historical.Run,
+		"recent":     recent.Run,
+	}
+
 	ctx := context.Background()
 
 	// CRAWLER_PHASE で実行フェーズを選択（未指定時は indexer）
@@ -57,33 +77,35 @@ func run() error {
 		phase = "indexer"
 	}
 
-	slog.Info("crawler: start", "phase", phase)
+	if phase == "gather" {
+		return runGather(ctx, runners)
+	}
 
-	var runErr error
-	switch phase {
-	case "discovery":
-		discoverer := crawler.NewDiscoverer(blogRepo, articleRepo, keywordRepo, rssFetcher, hatenaPlatformID, cfg.TFIDFSampleSize, cfg.TFIDFKeywordCount)
-		runErr = discoverer.Run(ctx)
-	case "indexer":
-		indexer := crawler.NewIndexer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.MaxArticlesPerBlog, cfg.IndexBatchSize, cfg.IndexMaxErrorCount, cfg.CrawlConcurrency)
-		runErr = indexer.Run(ctx)
-	case "syncer":
-		syncer := crawler.NewSyncer(blogRepo, articleRepo, rssFetcher, embedClient, cfg.SyncStalenessDays, cfg.MaxArticlesPerBlog, cfg.SyncBatchSize, cfg.SyncMaxErrorCount)
-		runErr = syncer.Run(ctx)
-	case "historical":
-		historical := crawler.NewHistorical(blogRepo, hatenaPlatformID, cfg.CrawlDateFrom, cfg.CrawlDateTo, cfg.HistoricalBookmarkMax, cfg.HistoricalDateWindowDays, cfg.HistoricalDateUsersMax)
-		runErr = historical.Run(ctx)
-	case "recent":
-		recent := crawler.NewRecent(blogRepo, hatenaPlatformID)
-		runErr = recent.Run(ctx)
-	default:
+	runFn, ok := runners[phase]
+	if !ok {
 		return fmt.Errorf("unknown CRAWLER_PHASE: %s", phase)
 	}
 
-	if runErr != nil {
-		return fmt.Errorf("crawler %s: %w", phase, runErr)
-	}
+	return runPhase(ctx, phase, runFn)
+}
 
+// runGather は discovery/historical/recent を順番に実行する。
+// 1フェーズが失敗しても残りは実行し、発生したエラーはまとめて返す。
+func runGather(ctx context.Context, runners map[string]func(context.Context) error) error {
+	var errs []error
+	for _, phase := range gatherPhases {
+		if err := runPhase(ctx, phase, runners[phase]); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func runPhase(ctx context.Context, phase string, runFn func(context.Context) error) error {
+	slog.Info("crawler: start", "phase", phase)
+	if err := runFn(ctx); err != nil {
+		return fmt.Errorf("crawler %s: %w", phase, err)
+	}
 	slog.Info("crawler: done", "phase", phase)
 	return nil
 }
