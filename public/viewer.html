@@ -73,6 +73,7 @@
           );
           const data = await res.json();
           renderResult(data);
+          pushHistory(url, data);
         } catch (e) {
           resBox.innerHTML = "Error fetching data";
         }
@@ -92,6 +93,7 @@
           const data = await res.json();
           document.getElementById("urlInput").value = data.source.url;
           renderResult(data);
+          pushHistory(data.source.url, data);
         } catch (e) {
           resBox.innerHTML = "Error fetching data";
         }
@@ -110,6 +112,24 @@
           alert("Failed to paste from clipboard");
         }
       }
+
+      function pushHistory(url, data) {
+        history.pushState({ url, data }, "");
+      }
+
+      window.addEventListener("popstate", (event) => {
+        const state = event.state;
+        const resBox = document.getElementById("result");
+        if (state && state.data) {
+          document.getElementById("urlInput").value = state.url || "";
+          renderResult(state.data);
+        } else {
+          document.getElementById("urlInput").value = "";
+          resBox.innerHTML = "";
+        }
+      });
+
+      history.replaceState({ url: "", data: null }, "");
     </script>
   </body>
 </html>
