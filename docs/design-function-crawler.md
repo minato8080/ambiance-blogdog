@@ -9,6 +9,11 @@
 | 3        | `syncer`        | 差分更新           | 毎週日曜 5:00 JST    |
 | 4        | `recent`        | 新着ゼロブクマ収集 | 毎週日曜 6:00 JST    |
 | 5        | `historical`    | 過去記事サンプリング | 毎週日曜 5:30 JST   |
+| —        | `gather`        | `discovery` → `historical` → `recent` を順に実行 | （移行予定） |
+
+- `CRAWLER_PHASE` 未指定時は `indexer` を実行する。
+- `gather` は新規ブログを `pending` 登録する3フェーズをまとめたもの。1フェーズが失敗しても残りを実行し、エラーはまとめて返す（`errors.Join`）。
+- 本番の Cloud Run Jobs / Cloud Scheduler は現在も上表の5ジョブ構成。`gather`・`indexer`・`syncer` の3ジョブへの移行手順は `docs/tasks.md` の §10 を参照。
 
 ---
 
@@ -78,17 +83,28 @@
 2. CRAWL_CONCURRENCY 並列でブログを処理
    a. status を indexing に更新
    b. {blog_url}/feed を GET してRSS記事一覧を取得（最大 MAX_ARTICLES_PER_BLOG 件）
-   c. 記事ごとに「タイトル + 本文サマリー」を結合してEmbedding生成
+   c. 記事ごとに「タイトル + "\n" + 本文サマリー」を結合してEmbedding生成（512次元、`halfvec(512)` で保存）
    d. articles テーブルに UPSERT（URLをユニークキー）
    e. status を ready に更新、error_count をリセット、last_synced_at を記録
 ```
 
+### Embedding の入力テキスト
+
+| 経路 | 入力 | 上限 |
+| ---- | ---- | ---- |
+| indexer / syncer | タイトル + RSS 本文（`content`、空なら `description`）から HTML タグを除き空白を詰めたもの | 本文は先頭 **500文字**（`summary` 列にも同じ値を保存） |
+| `/similar` オンデマンド | `<title>` + ページの `.entry-content, article` 要素のテキスト（見つからなければ `body`） | 本文は先頭 `EMBED_MAX_CHARS`（デフォルト 1000）文字。`summary` 列には先頭500文字を保存 |
+
+> `EMBED_MAX_CHARS` はオンデマンド経路にのみ適用される。両経路で入力の作り方が異なる点に注意。
+
 ### 記事数制限（FIFO）
 
 ```
-現在の記事数 >= MAX_ARTICLES_PER_BLOG の場合:
-  → published_at が最も古い記事を1件削除してから新規 UPSERT
+記事ごとに、そのブログの現在の記事数 >= MAX_ARTICLES_PER_BLOG の場合:
+  → published_at が最も古い記事（NULL を優先）を1件削除してから新規 UPSERT
 ```
+
+> 既存URLの再 UPSERT でも削除が先に走る。FIFO 削除は indexer のみで行い、syncer では行わない（下記）。
 
 ### エラー処理
 
@@ -106,12 +122,14 @@
 ```
 1. 対象ブログを最大 SYNC_BATCH_SIZE 件取得（ブログ間に1秒インターバル）
 2. 各ブログに対して:
-   a. {blog_url}/feed を GET してRSS記事一覧を取得
+   a. {blog_url}/feed を GET してRSS記事一覧を取得（新しい順に最大 MAX_ARTICLES_PER_BLOG 件）
    b. 各記事の published_at をDBと比較
    c. 変化あり（新規 or published_at が変わった）: Embedding 再生成して UPSERT（記事間に1秒インターバル）
    d. 変化なし: スキップ
    e. status=ready、error_count をリセット、last_synced_at を更新
 ```
+
+> syncer は FIFO 削除を行わないため、新規記事が追加されると1ブログあたりの記事数が `MAX_ARTICLES_PER_BLOG` を超えることがある。
 
 ### エラー処理
 

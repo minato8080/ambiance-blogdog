@@ -4,9 +4,10 @@
 
 | 項目                       | 採用技術                                  |
 | -------------------------- | ----------------------------------------- |
-| 言語                       | Go 1.22+                                  |
+| 言語                       | Go 1.26+（`go.mod` の `go 1.26.2`）       |
 | HTTPフレームワーク         | `net/http`（標準ライブラリ）              |
 | DBドライバ                 | `github.com/jackc/pgx/v5`                 |
+| ベクトル型                 | pgvector 0.7.0+（`halfvec`）/ `github.com/pgvector/pgvector-go` |
 | マイグレーション           | `github.com/golang-migrate/migrate`       |
 | RSSパーサー                | `github.com/mmcdole/gofeed`               |
 | HTMLパーサー（クローラー） | `github.com/PuerkitoBio/goquery`          |
@@ -24,11 +25,14 @@ ambiance-blogdog/
 ├── cmd/
 │   ├── api/
 │   │   └── main.go                   # APIサーバー エントリポイント（Cloud Run）
-│   └── crawler/
-│       └── main.go                   # クローラー エントリポイント（Cloud Run Jobs）
+│   ├── crawler/
+│   │   └── main.go                   # クローラー エントリポイント（Cloud Run Jobs）
+│   └── evalsearch/
+│       └── *.go                      # 類似検索の改善案を既存データで評価する開発用ツール（docs/evaluation.md）
 ├── internal/
 │   ├── handler/
 │   │   ├── similar.go                # GET /similar
+│   │   ├── random.go                 # GET /random
 │   │   ├── blogs.go                  # GET /blogs（管理用）
 │   │   ├── stats.go                  # GET /stats（管理用）
 │   │   └── keywords.go               # GET /keywords（管理用）
@@ -38,11 +42,14 @@ ambiance-blogdog/
 │   │   ├── recent.go                 # ブックマーク数0の最新エントリー収集
 │   │   ├── indexer.go                # 記事インデックス構築
 │   │   ├── syncer.go                 # 差分更新
+│   │   ├── embed.go                  # indexer/syncer が使う Embedding 生成インターフェース
 │   │   └── scheduler.go              # 全フェーズのインプロセス スケジューリング（開発用）
 │   ├── rss/
 │   │   └── fetcher.go                # RSSフィード取得・パース
 │   ├── tfidf/
 │   │   └── tfidf.go                  # TF-IDF によるキーワード抽出
+│   ├── style/
+│   │   └── style.go                  # 文体特徴量の抽出（現在は evalsearch のみが使用）
 │   ├── embedding/
 │   │   └── openai.go                 # OpenAI Embeddings APIクライアント（並列制限付き）
 │   ├── repository/
@@ -62,6 +69,7 @@ ambiance-blogdog/
 │   ├── 003_create_articles.{up,down}.sql
 │   ├── 004_articles_fk_cascade.{up,down}.sql
 │   ├── 005_create_crawler_keywords.{up,down}.sql
+│   ├── 006_articles_embedding_halfvec.{up,down}.sql  # embedding を halfvec(512) に変換、IVFFlat 削除
 │   └── embed.go
 ├── public/                           # Firebase Hosting デプロイ対象
 │   ├── admin.html                    # 管理画面
@@ -75,7 +83,7 @@ ambiance-blogdog/
 │   └── similar.yaml                  # OpenAPI仕様
 ├── config/
 │   └── config.go
-├── scripts/
+├── docs/                             # 要件定義・設計書・運用手順
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Makefile
@@ -95,10 +103,10 @@ ambiance-blogdog/
 | `PORT`                  | `8080`                  | サーバーポート                                |
 | `DATABASE_URL`          | —（必須）               | PostgreSQL接続文字列                          |
 | `OPENAI_API_KEY`        | —（必須）               | OpenAI APIキー                                |
-| `OPENAI_EMBEDDING_MODEL`| `text-embedding-3-small`| 使用するEmbeddingモデル名                     |
+| `OPENAI_EMBEDDING_MODEL`| `text-embedding-3-small`| 使用するEmbeddingモデル名。次元数は `embedding.Dimensions`（512）固定で API に指定するため、`dimensions` 指定に対応したモデル（text-embedding-3 系）に限る |
 | `API_KEY`               | —（必須）               | 管理系エンドポイントの認証キー                |
 | `CRAWL_CONCURRENCY`     | `5`                     | OpenAI API 並列呼び出し数上限                 |
-| `EMBED_MAX_CHARS`        | `1000`                  | Embedding に使用するテキストの最大文字数      |
+| `EMBED_MAX_CHARS`       | `1000`                  | `/similar` オンデマンド解析時に Embedding に使う本文の最大文字数（indexer/syncer は RSS 本文の先頭500文字固定で、この値は使わない） |
 | `CORS_ALLOWED_ORIGINS`  | `*`                     | 許可CORSオリジン（カンマ区切り）              |
 | `LOG_LEVEL`             | `info`                  | ログレベル（debug/info/warn/error）           |
 
@@ -106,7 +114,7 @@ ambiance-blogdog/
 
 | 変数名                        | デフォルト        | 対象フェーズ    | 説明                                                        |
 | ----------------------------- | ----------------- | --------------- | ----------------------------------------------------------- |
-| `CRAWLER_PHASE`               | `indexer`         | 共通            | 実行フェーズ（discovery/indexer/syncer/historical/recent）  |
+| `CRAWLER_PHASE`               | `indexer`         | 共通            | 実行フェーズ（discovery/indexer/syncer/historical/recent/gather）。`gather` は discovery→historical→recent を順に実行 |
 | `TFIDF_SAMPLE_SIZE`           | `500`             | discovery       | TF-IDF コーパスサイズ（記事数）                             |
 | `TFIDF_KEYWORD_COUNT`         | `20`              | discovery       | TF-IDF 抽出キーワード数                                     |
 | `INDEX_BATCH_SIZE`            | `50`              | indexer         | 1回あたりの処理ブログ数                                     |
@@ -143,6 +151,7 @@ ambiance-blogdog/
     - `blogdog-crawler-syncer` — 毎週日曜 5:00 JST
     - `blogdog-crawler-historical` — 毎週日曜 5:30 JST
     - `blogdog-crawler-recent` — 毎週日曜 6:00 JST
+    - コードは `CRAWLER_PHASE=gather`（discovery+historical+recent）に対応済み。`gather` / `indexer` / `syncer` の3ジョブ構成への移行は未実施（`docs/tasks.md` §10）
   - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。運用コマンドは `docs/operations.md` を参照
   - Neon — PostgreSQL + pgvector（無料枠）
 

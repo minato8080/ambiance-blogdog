@@ -21,9 +21,9 @@ func NewArticleRepository(db *pgxpool.Pool) *ArticleRepository {
 
 // Upsert は記事URLをキーとして UPSERT する。
 func (r *ArticleRepository) Upsert(ctx context.Context, a *model.Article) error {
-	var vec *pgvector.Vector
+	var vec *pgvector.HalfVector
 	if a.Embedding != nil {
-		v := pgvector.NewVector(a.Embedding)
+		v := pgvector.NewHalfVector(a.Embedding)
 		vec = &v
 	}
 	tags := a.Tags
@@ -57,7 +57,7 @@ func (r *ArticleRepository) FindByURL(ctx context.Context, url string) (*model.A
 		url,
 	)
 	a := &model.Article{}
-	var vec pgvector.Vector
+	var vec pgvector.HalfVector
 	err := row.Scan(
 		&a.ID, &a.BlogID, &a.URL, &a.Title, &a.Summary, &a.Tags,
 		&vec, &a.PublishedAt, &a.IndexedAt,
@@ -73,8 +73,9 @@ func (r *ArticleRepository) FindByURL(ctx context.Context, url string) (*model.A
 }
 
 // SearchSimilar はコサイン類似度で類似記事を検索する（excludeURL および同一ブログを除外）。
+// embedding（halfvec(512)）には索引を張っていないため、全件比較で正確な上位 limit 件を返す。
 func (r *ArticleRepository) SearchSimilar(ctx context.Context, embedding []float32, excludeURL string, excludeBlogID string, limit int) ([]*model.SimilarArticle, error) {
-	vec := pgvector.NewVector(embedding)
+	vec := pgvector.NewHalfVector(embedding)
 	rows, err := r.db.Query(ctx, `
 		SELECT a.url, a.title, COALESCE(b.blog_url, ''), COALESCE(b.name, ''), a.tags, a.published_at,
 		       1 - (a.embedding <=> $1) AS similarity
@@ -165,7 +166,7 @@ func (r *ArticleRepository) FindRandom(ctx context.Context) (*model.Article, err
 		ORDER BY RANDOM()
 		LIMIT 1`)
 	a := &model.Article{}
-	var vec pgvector.Vector
+	var vec pgvector.HalfVector
 	err := row.Scan(
 		&a.ID, &a.BlogID, &a.URL, &a.Title, &a.Summary, &a.Tags,
 		&vec, &a.PublishedAt, &a.IndexedAt,

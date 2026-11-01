@@ -9,6 +9,10 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+// Dimensions は生成する Embedding の次元数。articles.embedding（halfvec(512)）と一致させること。
+// dimensions 指定に対応したモデル（text-embedding-3 系）が必要。
+const Dimensions = 512
+
 // Client は OpenAI Embeddings API クライアント（並列数制限付き）。
 type Client struct {
 	client *openai.Client
@@ -50,14 +54,18 @@ func (c *Client) Embed(ctx context.Context, text string) ([]float32, error) {
 
 func (c *Client) callAPI(ctx context.Context, text string) ([]float32, error) {
 	resp, err := c.client.CreateEmbeddings(ctx, openai.EmbeddingRequestStrings{
-		Input: []string{text},
-		Model: c.model,
+		Input:      []string{text},
+		Model:      c.model,
+		Dimensions: Dimensions,
 	})
 	if err != nil {
 		return nil, err
 	}
 	if len(resp.Data) == 0 {
 		return nil, fmt.Errorf("empty embedding response")
+	}
+	if got := len(resp.Data[0].Embedding); got != Dimensions {
+		return nil, fmt.Errorf("unexpected embedding dimensions: got %d, want %d", got, Dimensions)
 	}
 	return resp.Data[0].Embedding, nil
 }
