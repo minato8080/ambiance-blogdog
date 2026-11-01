@@ -2,18 +2,17 @@
 
 クローラーは `CRAWLER_PHASE` 環境変数で実行フェーズを切り替え、1回実行して終了する（Cloud Run Jobs モデル）。
 
-| フェーズ | `CRAWLER_PHASE` | 役割               | Cloud Scheduler 間隔 |
-| -------- | --------------- | ------------------ | -------------------- |
-| 1        | `discovery`     | ブログURL発見・登録 | 毎週日曜 3:00 JST    |
-| 2        | `indexer`       | 記事インデックス構築 | 毎週日曜 4:00 JST   |
-| 3        | `syncer`        | 差分更新           | 毎週日曜 5:00 JST    |
-| 4        | `recent`        | 新着ゼロブクマ収集 | 毎週日曜 6:00 JST    |
-| 5        | `historical`    | 過去記事サンプリング | 毎週日曜 5:30 JST   |
-| —        | `gather`        | `discovery` → `historical` → `recent` を順に実行 | （移行予定） |
+Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / historical / recent を `gather` フェーズに統合し3ジョブ構成にしている。
 
-- `CRAWLER_PHASE` 未指定時は `indexer` を実行する。
-- `gather` は新規ブログを `pending` 登録する3フェーズをまとめたもの。1フェーズが失敗しても残りを実行し、エラーはまとめて返す（`errors.Join`）。
-- 本番の Cloud Run Jobs / Cloud Scheduler は現在も上表の5ジョブ構成。`gather`・`indexer`・`syncer` の3ジョブへの移行手順は `docs/tasks.md` の §10 を参照。
+| フェーズ | `CRAWLER_PHASE` | 役割                                        | Cloud Scheduler 間隔 |
+| -------- | --------------- | ------------------------------------------- | -------------------- |
+| 1        | `gather`        | ブログURL発見・登録（discovery→historical→recent を順次実行） | 毎週日曜 3:00 JST |
+| 2        | `indexer`       | 記事インデックス構築                        | 毎週日曜 4:00 JST    |
+| 3        | `syncer`        | 差分更新                                    | 毎週日曜 5:00 JST    |
+
+> 内部サブフェーズ（`discovery` / `historical` / `recent`）は `CRAWLER_PHASE=gather` 実行時に順次呼び出される。1フェーズが失敗しても残りを実行し、エラーは `errors.Join` でまとめて返す。各サブフェーズは `CRAWLER_PHASE` に直接指定して単独実行することもできる。`CRAWLER_PHASE` 未指定時は `indexer` を実行する。
+>
+> GCP 側の移行（`blogdog-crawler-gather` ジョブ・スケジューラーの作成、旧3ジョブの削除）は未完了（`docs/tasks.md` §10）。2026-08-08 の master デプロイは `blogdog-crawler-gather` が存在せず失敗している。
 
 ---
 

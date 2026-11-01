@@ -114,7 +114,7 @@ ambiance-blogdog/
 
 | 変数名                        | デフォルト        | 対象フェーズ    | 説明                                                        |
 | ----------------------------- | ----------------- | --------------- | ----------------------------------------------------------- |
-| `CRAWLER_PHASE`               | `indexer`         | 共通            | 実行フェーズ（discovery/indexer/syncer/historical/recent/gather）。`gather` は discovery→historical→recent を順に実行 |
+| `CRAWLER_PHASE`               | `indexer`         | 共通            | 実行フェーズ（gather/indexer/syncer）。`gather` は discovery→historical→recent を順に実行。サブフェーズ（discovery/historical/recent）の単独指定も可 |
 | `TFIDF_SAMPLE_SIZE`           | `500`             | discovery       | TF-IDF コーパスサイズ（記事数）                             |
 | `TFIDF_KEYWORD_COUNT`         | `20`              | discovery       | TF-IDF 抽出キーワード数                                     |
 | `INDEX_BATCH_SIZE`            | `50`              | indexer         | 1回あたりの処理ブログ数                                     |
@@ -145,14 +145,12 @@ ambiance-blogdog/
 - **本番環境**:
   - Firebase Hosting — 静的HTML（無料枠）
   - Cloud Run — Go API（`blogdog-api`、asia-northeast1）
-  - Cloud Run Jobs — Goクローラー フェーズ別5ジョブ（毎週日曜 JST、パイプライン順に実行）
-    - `blogdog-crawler-discovery` — 毎週日曜 3:00 JST
+  - Cloud Run Jobs — Goクローラー 3ジョブ（毎週日曜 JST、パイプライン順に実行）
+    - `blogdog-crawler-gather` — 毎週日曜 3:00 JST（discovery → historical → recent を順次実行）
     - `blogdog-crawler-indexer` — 毎週日曜 4:00 JST
     - `blogdog-crawler-syncer` — 毎週日曜 5:00 JST
-    - `blogdog-crawler-historical` — 毎週日曜 5:30 JST
-    - `blogdog-crawler-recent` — 毎週日曜 6:00 JST
-    - コードは `CRAWLER_PHASE=gather`（discovery+historical+recent）に対応済み。`gather` / `indexer` / `syncer` の3ジョブ構成への移行は未実施（`docs/tasks.md` §10）
-  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。運用コマンドは `docs/operations.md` を参照
+    - GCP 側の移行（`blogdog-crawler-gather` の作成と旧 discovery / historical / recent ジョブの削除）は未完了（`docs/tasks.md` §10）
+  - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。無料枠3ジョブ以内に収まる。運用コマンドは `docs/operations.md` を参照
   - Neon — PostgreSQL + pgvector（無料枠）
 
 ### 監視・ログ

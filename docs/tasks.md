@@ -108,11 +108,11 @@
 クローラーを週1回稼働に変更した際、Cloud Scheduler の無料枠（3ジョブ/月）に収めるため、discovery/historical/recentを1つの`gather`フェーズに統合し、Cloud Run Jobs / Cloud Scheduler を5本→3本（gather/indexer/syncer）に削減する。
 
 - [x] `cmd/crawler/main.go` に `CRAWLER_PHASE=gather`（discovery→historical→recentを順次実行、エラーは`errors.Join`でまとめて返す）を追加
-- [ ] `go build ./...` をWSLで検証（Windows側にgoコマンドが無く未検証）
-- [ ] `.github/workflows/deploy.yml` の crawler Jobs 更新ループを `discovery indexer syncer historical recent` → `gather indexer syncer` に変更
-- [ ] `docs/operations.md` の全停止・再開・個別操作コマンドのジョブ名一覧を `gather indexer syncer` に変更
-- [ ] `docs/design-infrastructure.md` / `docs/design-function-crawler.md` を3グループ構成（gather=discovery+historical+recent統合）に書き直す
-- [ ] `docs/cost-estimate.md` のCloud Scheduler試算を3ジョブ($0/月、無料枠内)に更新
+- [x] `go build ./...` をWSLで検証（Windows側にgoコマンドが無く未検証）
+- [x] `.github/workflows/deploy.yml` の crawler Jobs 更新ループを `discovery indexer syncer historical recent` → `gather indexer syncer` に変更
+- [x] `docs/operations.md` の全停止・再開・個別操作コマンドのジョブ名一覧を `gather indexer syncer` に変更
+- [x] `docs/design-infrastructure.md` / `docs/design-function-crawler.md` を3グループ構成（gather=discovery+historical+recent統合）に書き直す
+- [x] `docs/cost-estimate.md` のCloud Scheduler試算を3ジョブ($0/月、無料枠内)に更新
 - [ ] GCPインフラ移行（**破壊的操作あり・要事前確認**）
   - [ ] 新コードをmasterにデプロイしてイメージ反映
   - [ ] `blogdog-crawler-gather` Cloud Run Job作成（1vCPU/512Mi/timeout600s、既存ジョブと同じenv構成）
