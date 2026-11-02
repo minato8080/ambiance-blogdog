@@ -120,3 +120,20 @@
   - [ ] `blogdog-crawler-gather` を手動実行して動作確認
   - [ ] 問題なければ `blogdog-crawler-discovery` / `blogdog-crawler-historical` / `blogdog-crawler-recent` のCloud Run Jobs・Cloud Schedulerを削除
   - [ ] `gcloud scheduler jobs list` で最終的に3ジョブ(gather/indexer/syncer)になっていることを確認
+
+## 11. Embedding の halfvec(512) 化（ストレージ削減）
+
+`articles` の容量の約9割が `embedding vector(1536)` と IVFFlat 索引だったため、`halfvec(512)` に変換して索引を削除する。評価方法と結果は `docs/evaluation.md`、設計は `docs/design-database.md` の「Embedding の次元変更」を参照。
+
+- [x] 評価ツール `cmd/evalsearch` を作成し、本番データで計測（DB 478MB、IVFFlat の recall@10 0.16、halfvec(512) の recall@10 0.739・類似度保持率 0.990）
+- [x] マイグレーション `006_articles_embedding_halfvec` を作成（変換＋IVFFlat 削除）
+- [x] Embedding 生成で `dimensions=512` を指定、リポジトリを `pgvector.HalfVector` に変更
+- [x] ローカル DB（pgvector 0.8.0 / PostgreSQL 17、本番規模の合成データ 26,500件）でマイグレーションと検索を検証
+  - `articles` 474MB → 39MB、006 の適用は約2秒
+  - 検索は全件比較でサーバー側 約35ms（ローカル計測。Neon のコンピュートでは要再計測）、Go で計算した正解との一致率 1.000
+  - 512次元の Upsert / FindByURL / FindRandom、embedding が NULL の Upsert、down → up を確認。1536次元の書き込みは `expected 512 dimensions` エラーになる
+- [ ] 本番適用前に Neon のバックアップ用ブランチを作成（**要事前確認**）
+- [ ] master へデプロイ（API 起動時にマイグレーションが走る。API とクローラーのイメージは同時に更新する）
+- [ ] 適用後に `evalsearch dbcheck` で容量とレイテンシを確認
+- [ ] 文体特徴量の並べ替え（alpha=0.9 候補）を `evalsearch blind` で目視評価してから導入を判断
+- [ ] syncer が FIFO 削除をしない問題（1ブログ最大10件、5件超過 407 ブログ）を修正

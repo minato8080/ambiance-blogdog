@@ -10,7 +10,9 @@ Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / hi
 | 2        | `indexer`       | 記事インデックス構築                        | 毎週日曜 4:00 JST    |
 | 3        | `syncer`        | 差分更新                                    | 毎週日曜 5:00 JST    |
 
-> 内部サブフェーズ（`discovery` / `historical` / `recent`）は `CRAWLER_PHASE=gather` 実行時に順次呼び出される。エラーは `errors.Join` でまとめて返す。
+> 内部サブフェーズ（`discovery` / `historical` / `recent`）は `CRAWLER_PHASE=gather` 実行時に順次呼び出される。1フェーズが失敗しても残りを実行し、エラーは `errors.Join` でまとめて返す。各サブフェーズは `CRAWLER_PHASE` に直接指定して単独実行することもできる。`CRAWLER_PHASE` 未指定時は `indexer` を実行する。
+>
+> GCP 側の移行（`blogdog-crawler-gather` ジョブ・スケジューラーの作成、旧3ジョブの削除）は未完了（`docs/tasks.md` §10）。2026-08-08 の master デプロイは `blogdog-crawler-gather` が存在せず失敗している。
 
 ---
 
@@ -80,17 +82,28 @@ Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / hi
 2. CRAWL_CONCURRENCY 並列でブログを処理
    a. status を indexing に更新
    b. {blog_url}/feed を GET してRSS記事一覧を取得（最大 MAX_ARTICLES_PER_BLOG 件）
-   c. 記事ごとに「タイトル + 本文サマリー」を結合してEmbedding生成
+   c. 記事ごとに「タイトル + "\n" + 本文サマリー」を結合してEmbedding生成（512次元、`halfvec(512)` で保存）
    d. articles テーブルに UPSERT（URLをユニークキー）
    e. status を ready に更新、error_count をリセット、last_synced_at を記録
 ```
 
+### Embedding の入力テキスト
+
+| 経路 | 入力 | 上限 |
+| ---- | ---- | ---- |
+| indexer / syncer | タイトル + RSS 本文（`content`、空なら `description`）から HTML タグを除き空白を詰めたもの | 本文は先頭 **500文字**（`summary` 列にも同じ値を保存） |
+| `/similar` オンデマンド | `<title>` + ページの `.entry-content, article` 要素のテキスト（見つからなければ `body`） | 本文は先頭 `EMBED_MAX_CHARS`（デフォルト 1000）文字。`summary` 列には先頭500文字を保存 |
+
+> `EMBED_MAX_CHARS` はオンデマンド経路にのみ適用される。両経路で入力の作り方が異なる点に注意。
+
 ### 記事数制限（FIFO）
 
 ```
-現在の記事数 >= MAX_ARTICLES_PER_BLOG の場合:
-  → published_at が最も古い記事を1件削除してから新規 UPSERT
+記事ごとに、そのブログの現在の記事数 >= MAX_ARTICLES_PER_BLOG の場合:
+  → published_at が最も古い記事（NULL を優先）を1件削除してから新規 UPSERT
 ```
+
+> 既存URLの再 UPSERT でも削除が先に走る。FIFO 削除は indexer のみで行い、syncer では行わない（下記）。
 
 ### エラー処理
 
@@ -108,12 +121,14 @@ Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / hi
 ```
 1. 対象ブログを最大 SYNC_BATCH_SIZE 件取得（ブログ間に1秒インターバル）
 2. 各ブログに対して:
-   a. {blog_url}/feed を GET してRSS記事一覧を取得
+   a. {blog_url}/feed を GET してRSS記事一覧を取得（新しい順に最大 MAX_ARTICLES_PER_BLOG 件）
    b. 各記事の published_at をDBと比較
    c. 変化あり（新規 or published_at が変わった）: Embedding 再生成して UPSERT（記事間に1秒インターバル）
    d. 変化なし: スキップ
    e. status=ready、error_count をリセット、last_synced_at を更新
 ```
+
+> syncer は FIFO 削除を行わないため、新規記事が追加されると1ブログあたりの記事数が `MAX_ARTICLES_PER_BLOG` を超えることがある。
 
 ### エラー処理
 

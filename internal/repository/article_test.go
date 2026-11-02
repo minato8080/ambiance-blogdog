@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/minato8080/ambiance-blogdog/internal/embedding"
 	"github.com/minato8080/ambiance-blogdog/internal/model"
 	"github.com/minato8080/ambiance-blogdog/internal/repository"
 )
@@ -52,7 +53,7 @@ func TestArticleRepository_UpsertAndFindByURL(t *testing.T) {
 		Title:       "テスト記事",
 		Summary:     "テスト本文",
 		Tags:        []string{"Go", "テスト"},
-		Embedding:   make([]float32, 1536),
+		Embedding:   make([]float32, embedding.Dimensions),
 		PublishedAt: &pubAt,
 	}
 	t.Cleanup(func() {
@@ -93,7 +94,7 @@ func TestArticleRepository_SearchSimilar(t *testing.T) {
 			Title:     "類似記事A",
 			Summary:   "内容A",
 			Tags:      []string{},
-			Embedding: make([]float32, 1536),
+			Embedding: make([]float32, embedding.Dimensions),
 		},
 		{
 			ID:        "01TEST0000000000000000003A",
@@ -102,7 +103,7 @@ func TestArticleRepository_SearchSimilar(t *testing.T) {
 			Title:     "類似記事B",
 			Summary:   "内容B",
 			Tags:      []string{},
-			Embedding: make([]float32, 1536),
+			Embedding: make([]float32, embedding.Dimensions),
 		},
 	}
 	t.Cleanup(func() {
@@ -114,7 +115,7 @@ func TestArticleRepository_SearchSimilar(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, a))
 	}
 
-	results, err := repo.SearchSimilar(ctx, make([]float32, 1536), articles[0].URL, "", 5)
+	results, err := repo.SearchSimilar(ctx, make([]float32, embedding.Dimensions), articles[0].URL, "", 5)
 	require.NoError(t, err)
 	// excludeURL は結果に含まれない
 	for _, r := range results {
@@ -155,7 +156,7 @@ func TestArticleRepository_DeleteOldest(t *testing.T) {
 		Title:       "最古記事",
 		Summary:     "",
 		Tags:        []string{},
-		Embedding:   make([]float32, 1536),
+		Embedding:   make([]float32, embedding.Dimensions),
 		PublishedAt: &older,
 	}
 	require.NoError(t, repo.Upsert(ctx, a))

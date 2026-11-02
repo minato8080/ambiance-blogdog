@@ -65,8 +65,8 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 
 ### Neon（PostgreSQL + pgvector）
 
-- ストレージ概算: `embedding vector(1536)` は1レコードあたり約6KB。22,509記事 → 埋め込みデータのみで約138MB、インデックス（IVFFlat）や他カラムを含めると **概算300〜350MB**
-- Neon Free Plan のストレージ上限（プランにより変動、要確認）に近づきつつあるため、記事数の増加ペースを監視推奨
+- ストレージ実測（2026-11-02、`evalsearch dbcheck`）: DB 全体 **478MB**（`articles` 26,535件。うち `embedding vector(1536)` の TOAST 213MB、IVFFlat 索引 208MB）。Neon Free Plan の上限に近い
+- `006_articles_embedding_halfvec` で `halfvec(512)` に変換し IVFFlat を削除した後は **100MB 前後**の見込み（未実測。適用後に `dbcheck` で確認する）
 - コンピュート時間（起動中の接続時間）による課金は本ドキュメントでは未計測。Neon Dashboard の Usage タブで確認すること
 
 ### Firebase Hosting
@@ -84,7 +84,7 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 | Cloud Scheduler | $0（無料枠3ジョブ以内） |
 | OpenAI Embeddings API | $0.01未満 |
 | Cloud Run（APIサーバー） | $0（無料枠内、要トラフィック確認） |
-| Neon（PostgreSQL） | 未確認（ストレージ300〜350MB、無料枠に近い可能性） |
+| Neon（PostgreSQL） | 未確認（ストレージ 478MB → halfvec 移行後 100MB 前後の見込み） |
 | Firebase Hosting | $0 |
 | **合計** | **概ね $0.2〜1/月**（Neon・APIトラフィックが無料枠を超えない前提） |
 
