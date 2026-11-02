@@ -113,6 +113,7 @@ func (s *Syncer) syncBlog(ctx context.Context, blog *model.Blog) error {
 		}
 		time.Sleep(time.Second)
 	}
+	trimBlogArticles(ctx, s.articleRepo, blog, s.maxArticles)
 
 	syncedAt := time.Now()
 	return s.blogRepo.UpdateStatus(ctx, blog.ID, model.BlogStatusReady, 0, &syncedAt)
