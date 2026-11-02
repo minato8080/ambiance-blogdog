@@ -167,5 +167,5 @@ ambiance-blogdog/
   3. 全クローラー Jobs のイメージを更新
   4. Cloud Run の URL を取得して `public/config.js` を生成
   5. Firebase Hosting にデプロイ
-- 既知の問題: 2026-11-02 の実行で Firebase Hosting のデプロイが 403（`serviceusage.services.get` 権限なし）で失敗した。`npx firebase-tools` がバージョン未固定で、新しい版が Service Usage API を確認するようになったためと考えられる（`docs/tasks.md` §12）
+- Firebase Hosting のデプロイは `firebase-tools@15.26.0` に固定している。バージョン未固定だった 2026-11-02 の実行では 15.34.2 が使われ、Service Usage API の確認が 403（`serviceusage.services.get` 権限なし）で失敗した。最後に成功した 2026-08-08 の実行は 15.26.0。バージョンを上げる場合は、先にサービスアカウントへ Service Usage Consumer ロールを付ける
 - 必要な GitHub Secrets: `GCP_SA_KEY`（サービスアカウントJSONのbase64）

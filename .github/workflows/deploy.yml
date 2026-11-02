@@ -65,4 +65,6 @@ jobs:
           echo "const API_BASE_URL = \"${API_URL}\";" > public/config.js
 
       - name: Deploy Firebase Hosting
-        run: npx firebase-tools deploy --only hosting --project=ambiance-blogdog --non-interactive
+        # 15.34.2 では Service Usage API の確認が 403 になるため、最後に成功した版に固定する。
+        # 上げる場合はサービスアカウントに Service Usage Consumer を付けてから変更すること。
+        run: npx --yes firebase-tools@15.26.0 deploy --only hosting --project=ambiance-blogdog --non-interactive
