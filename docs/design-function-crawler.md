@@ -12,7 +12,7 @@ Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / hi
 
 > 内部サブフェーズ（`discovery` / `historical` / `recent`）は `CRAWLER_PHASE=gather` 実行時に順次呼び出される。1フェーズが失敗しても残りを実行し、エラーは `errors.Join` でまとめて返す。各サブフェーズは `CRAWLER_PHASE` に直接指定して単独実行することもできる。`CRAWLER_PHASE` 未指定時は `indexer` を実行する。
 >
-> GCP 側の移行（`blogdog-crawler-gather` ジョブ・スケジューラーの作成、旧3ジョブの削除）は未完了（`docs/tasks.md` §10）。2026-08-08 の master デプロイは `blogdog-crawler-gather` が存在せず失敗している。
+> `blogdog-crawler-gather` ジョブは GCP に作成済み（2026-11-02 の master デプロイでイメージ更新に成功）。スケジューラーの設定と旧 discovery / historical / recent ジョブの削除状況は未確認（`docs/tasks.md` §10）。
 
 ---
 
@@ -99,11 +99,14 @@ Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / hi
 ### 記事数制限（FIFO）
 
 ```
-記事ごとに、そのブログの現在の記事数 >= MAX_ARTICLES_PER_BLOG の場合:
-  → published_at が最も古い記事（NULL を優先）を1件削除してから新規 UPSERT
+ブログの記事をすべて UPSERT した後:
+  → そのブログの記事を published_at が新しい順に MAX_ARTICLES_PER_BLOG 件だけ残し、残りを削除
+    （published_at が NULL の記事は最も古いものとして扱う。同順位は indexed_at が新しい方を残す）
 ```
 
-> 既存URLの再 UPSERT でも削除が先に走る。FIFO 削除は indexer のみで行い、syncer では行わない（下記）。
+> indexer と syncer の両方で、ブログの処理の最後に行う（`ArticleRepository.TrimToNewest`）。削除に失敗してもブログの処理は続け、ログだけ残す。
+> 以前の syncer は削除を行っていなかったため上限を超えたブログがある（2026-11-02 時点で最大10件、5件超過 407 ブログ）。これらは次に syncer が処理したときに上限まで減る。
+> `/similar` のオンデマンド解析で追加された記事は、そのブログが次に indexer / syncer で処理されるまで上限を超えることがある。
 
 ### エラー処理
 
@@ -125,10 +128,9 @@ Cloud Scheduler 無料枠（3ジョブ/月）に収めるため、discovery / hi
    b. 各記事の published_at をDBと比較
    c. 変化あり（新規 or published_at が変わった）: Embedding 再生成して UPSERT（記事間に1秒インターバル）
    d. 変化なし: スキップ
-   e. status=ready、error_count をリセット、last_synced_at を更新
+   e. 記事数制限（FIFO）: 新しい順に MAX_ARTICLES_PER_BLOG 件まで減らす（indexer と同じ）
+   f. status=ready、error_count をリセット、last_synced_at を更新
 ```
-
-> syncer は FIFO 削除を行わないため、新規記事が追加されると1ブログあたりの記事数が `MAX_ARTICLES_PER_BLOG` を超えることがある。
 
 ### エラー処理
 

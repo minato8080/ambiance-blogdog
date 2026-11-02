@@ -105,22 +105,26 @@ func (ix *Indexer) indexBlog(ctx context.Context, blog *model.Blog) error {
 			slog.Warn("indexer: article failed", "url", a.URL, "error", err)
 		}
 	}
+	trimBlogArticles(ctx, ix.articleRepo, blog, ix.maxArticles)
 
 	syncedAt := time.Now()
 	return ix.blogRepo.UpdateStatus(ctx, blog.ID, model.BlogStatusReady, 0, &syncedAt)
 }
 
-func (ix *Indexer) indexArticle(ctx context.Context, blogID string, a *rss.Article) error {
-	count, err := ix.articleRepo.CountByBlogID(ctx, blogID)
+// trimBlogArticles はブログの記事を公開日時が新しい順に maxArticles 件まで減らす（FIFO）。
+// 失敗してもブログの処理自体は続けられるので、ログだけ残す。
+func trimBlogArticles(ctx context.Context, repo *repository.ArticleRepository, blog *model.Blog, maxArticles int) {
+	deleted, err := repo.TrimToNewest(ctx, blog.ID, maxArticles)
 	if err != nil {
-		return err
+		slog.Warn("crawler: trim articles failed", "blog_url", blog.BlogURL, "error", err)
+		return
 	}
-	if count >= ix.maxArticles {
-		if err := ix.articleRepo.DeleteOldest(ctx, blogID); err != nil {
-			return err
-		}
+	if deleted > 0 {
+		slog.Info("crawler: trimmed old articles", "blog_url", blog.BlogURL, "deleted", deleted)
 	}
+}
 
+func (ix *Indexer) indexArticle(ctx context.Context, blogID string, a *rss.Article) error {
 	text := strings.TrimSpace(a.Title + "\n" + a.Summary)
 	emb, err := ix.embedClient.Embed(ctx, text)
 	if err != nil {

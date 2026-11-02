@@ -43,7 +43,7 @@ CONSTRAINT chk_blog_status CHECK (status IN ('pending', 'indexing', 'ready', 'er
 | `title`        | `TEXT`         | 記事タイトル                                |
 | `summary`      | `TEXT`         | 本文（HTML除去済み）の先頭500文字。API応答には含めず、TF-IDF キーワード抽出のコーパスに使用 |
 | `tags`         | `TEXT[]`       | タグ一覧                                    |
-| `embedding`    | `halfvec(512)` | Embeddingベクトル（text-embedding-3-small を `dimensions=512` で生成、半精度、1行あたり約1KB）。入力テキストは `design-function-crawler.md` を参照 |
+| `embedding`    | `halfvec(512)` | Embeddingベクトル（text-embedding-3-small を `dimensions=512` で生成、半精度、1行あたり約1KB）。ストレージは `MAIN`（行内に保存）。入力テキストは `design-function-crawler.md` を参照 |
 | `published_at` | `TIMESTAMPTZ`  | 記事公開日時                                |
 | `indexed_at`   | `TIMESTAMPTZ`  | インデックス更新日時                        |
 
@@ -78,16 +78,33 @@ CONSTRAINT chk_blog_status CHECK (status IN ('pending', 'indexing', 'ready', 'er
 
 ---
 
-## 容量の目安
+## 容量と検索性能
 
-`go run ./cmd/evalsearch dbcheck` で実測できる（`docs/evaluation.md` 参照）。
+`go run ./cmd/evalsearch dbcheck` で実測できる（`docs/evaluation.md` 参照）。いずれも `articles` 26,535件。
 
-| 要素 | 移行前（2026-11-02 実測、26,535件） | 移行後（推定） |
-| ---- | ----------------------------------- | -------------- |
-| `articles.embedding` | `vector(1536)` 平均6,148B、TOAST 213MB（古い行の領域を含む） | `halfvec(512)` 約1KB × 26.5k ≈ 27MB（行内に格納） |
-| `idx_articles_embedding` | 208MB | なし |
-| `articles.summary` / `title` | 約31MB / 約2MB | 変化なし |
-| DB 全体 | 478MB | 100MB 前後 |
+| 要素 | 006 適用前（2026-11-02 実測） | 006 適用後（2026-11-02 実測） |
+| ---- | ----------------------------- | ----------------------------- |
+| DB 全体 | 478MB | **77MB** |
+| `articles` 合計（本体 / TOAST / 索引） | 466MB（39MB / 213MB / 214MB） | 66MB（38MB / 23MB / 4.7MB） |
+| `articles.embedding` 平均 | 6,148B（`vector(1536)`） | 1,030B（`halfvec(512)`） |
+| `articles.summary` 平均 | 1,155B | 858B |
+| 類似検索のサーバー側実行時間 | 1.4ms（IVFFlat、recall@10 0.16） | 約95ms（全件比較、recall@10 1.000）※ |
+
+※ dbcheck の計測 SQL は blogs との結合を含まない形だったため、本番の SQL ではこれより遅い可能性がある（ローカルの同規模データでは約180ms）。
+
+## Embedding の行内保存と検索 SQL（`007_articles_embedding_storage_main`）
+
+- halfvec の既定ストレージは `EXTERNAL`。`summary` などと合わせて行が約2KBを超えると `embedding` が TOAST に追い出され、全件比較で1行ごとに TOAST を読みに行っていた（本番の EXPLAIN で 26,530 行に対し約10万バッファ参照）。
+- 007 で `embedding` を `MAIN` にしてテーブルを作り直す。行が大きい場合は先に `summary`（`EXTENDED`）が圧縮・TOAST 化され、`embedding` は行内に残る。
+- あわせて `SearchSimilar` の SQL を、距離を副問い合わせで1回だけ計算し、blogs との結合を上位件数に絞った後に行う形に変更した。
+- ローカル（PostgreSQL 17 + pgvector 0.8.0、本番と同じ件数・行サイズの合成データ）でのサーバー側実行時間:
+
+| | 変更前の SQL | 変更後の SQL |
+| - | - | - |
+| `EXTERNAL`（006 適用後） | 約180〜220ms | 約95〜140ms |
+| `MAIN`（007 適用後） | 約45〜70ms | **約26〜29ms** |
+
+- 007 の down はストレージ指定を `EXTERNAL` に戻すだけで、既存行は移動しない。
 
 ## Embedding の次元変更（`006_articles_embedding_halfvec`）
 

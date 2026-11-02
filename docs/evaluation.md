@@ -22,7 +22,7 @@ go run ./cmd/evalsearch dbcheck -queries 30
 - テーブル別（本体・TOAST・索引）、索引別の容量
 - `articles` の列別の平均バイト数と合計（`embedding` / `summary` / `title`）
 - 1ブログあたりの最大記事数と、5件を超えるブログの数
-- 本番と同じ検索 SQL で「索引あり（現行設定）」と「全件比較」を実行した結果
+- 本番と同じ検索 SQL（`repository.SearchSimilarSQL` をそのまま使う）で「索引あり（現行設定）」と「全件比較」を実行した結果。ベクトル索引がない現在は両者とも全件比較になる
   - 索引ありの recall（全件比較を正解とした一致率）と、件数が `k` 未満だったクエリ数
   - クライアント側で計ったレイテンシ（p50 / p95 / 最大。ネットワーク往復を含む）
   - 1件目のクエリの `EXPLAIN (ANALYZE, BUFFERS)`

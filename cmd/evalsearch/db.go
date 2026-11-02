@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/minato8080/ambiance-blogdog/internal/repository"
 )
 
 // DB にはすべて BEGIN READ ONLY のトランザクション内でアクセスする。
@@ -48,20 +50,6 @@ func exportArticles(ctx context.Context, conn *pgx.Conn) ([]Article, error) {
 	return arts, err
 }
 
-// prodSearchSQL は本番の ArticleRepository.SearchSimilar と同じ SQL を返す。
-// typ は articles.embedding の型名（vector / halfvec）。移行前後どちらの DB でも測れるようにする。
-func prodSearchSQL(typ string) string {
-	return `
-	SELECT a.url, 1 - (a.embedding <=> $1::` + typ + `) AS similarity
-	FROM articles a
-	LEFT JOIN blogs b ON b.id = a.blog_id
-	WHERE a.url != $2
-	  AND ($3 = '' OR a.blog_id != $3)
-	  AND a.embedding IS NOT NULL
-	ORDER BY a.embedding <=> $1::` + typ + `
-	LIMIT $4`
-}
-
 // embeddingType は articles.embedding の型（例: "vector(1536)"）と、キャストに使う型名を返す。
 func embeddingType(ctx context.Context, conn *pgx.Conn) (full, base string, err error) {
 	err = readOnly(ctx, conn, func(tx pgx.Tx) error {
@@ -82,11 +70,13 @@ func dbCheck(ctx context.Context, conn *pgx.Conn, w io.Writer, nq, k int) error 
 	if err := printSizes(ctx, conn, w); err != nil {
 		return err
 	}
-	embFull, embBase, err := embeddingType(ctx, conn)
+	embFull, _, err := embeddingType(ctx, conn)
 	if err != nil {
 		return fmt.Errorf("embedding 列の型取得: %w", err)
 	}
-	searchSQL := prodSearchSQL(embBase)
+	// 本番の ArticleRepository.SearchSimilar と同じ SQL。$1 の型（vector / halfvec）は列から推論されるので、
+	// 移行前後どちらの DB でもベクトルを文字列で渡せる。
+	searchSQL := repository.SearchSimilarSQL
 	fmt.Fprintf(w, "\narticles.embedding の型: %s\n", embFull)
 
 	type sample struct{ url, blogID, emb string }
@@ -142,12 +132,11 @@ func dbCheck(ctx context.Context, conn *pgx.Conn, w io.Writer, nq, k int) error 
 				}
 				defer rows.Close()
 				for rows.Next() {
-					var u string
-					var sim float64
-					if err := rows.Scan(&u, &sim); err != nil {
+					vals, err := rows.Values()
+					if err != nil {
 						return err
 					}
-					urls = append(urls, u)
+					urls = append(urls, fmt.Sprint(vals[0])) // 先頭列は記事URL
 				}
 				return rows.Err()
 			})

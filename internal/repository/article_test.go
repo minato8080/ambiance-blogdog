@@ -138,31 +138,51 @@ func TestArticleRepository_CountByBlogID(t *testing.T) {
 	assert.GreaterOrEqual(t, count, 0)
 }
 
-func TestArticleRepository_DeleteOldest(t *testing.T) {
+func TestArticleRepository_TrimToNewest(t *testing.T) {
 	pool := setupPool(t)
 	repo := repository.NewArticleRepository(pool)
 	ctx := context.Background()
 
-	blogID := os.Getenv("TEST_BLOG_ID")
-	if blogID == "" {
-		t.Skip("TEST_BLOG_ID が未設定のためスキップ")
+	// このテスト専用のブログを作る（削除すると記事も CASCADE で消える）
+	blogID := "01TESTTRIMBLOG000000000000"
+	_, err := pool.Exec(ctx, `
+		INSERT INTO blogs (id, platform_id, blog_url, status)
+		VALUES ($1, '01ARZ3NDEKTSV4RRFFQ69G5FAV', 'https://trim-test.hatenablog.com', 'ready')
+		ON CONFLICT (id) DO NOTHING`, blogID)
+	require.NoError(t, err)
+	t.Cleanup(func() { pool.Exec(ctx, `DELETE FROM blogs WHERE id = $1`, blogID) })
+
+	// 公開日時が新しい順に 2025, 2024, 2023, NULL の4件を用意し、2件に絞る
+	base := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	ids := []string{"01TESTTRIM0000000000000001", "01TESTTRIM0000000000000002", "01TESTTRIM0000000000000003", "01TESTTRIM0000000000000004"}
+	urls := make([]string, len(ids))
+	for i, id := range ids {
+		var pub *time.Time
+		if i < 3 {
+			p := base.AddDate(2-i, 0, 0)
+			pub = &p
+		}
+		urls[i] = "https://trim-test.hatenablog.com/entry/" + id
+		require.NoError(t, repo.Upsert(ctx, &model.Article{
+			ID: id, BlogID: blogID, URL: urls[i], Title: "trim", Tags: []string{},
+			Embedding: make([]float32, embedding.Dimensions), PublishedAt: pub,
+		}))
 	}
 
-	older := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	a := &model.Article{
-		ID:          "01TEST0000000000000000004A",
-		BlogID:      blogID,
-		URL:         "https://example.hatenablog.com/entry/oldest",
-		Title:       "最古記事",
-		Summary:     "",
-		Tags:        []string{},
-		Embedding:   make([]float32, embedding.Dimensions),
-		PublishedAt: &older,
-	}
-	require.NoError(t, repo.Upsert(ctx, a))
+	deleted, err := repo.TrimToNewest(ctx, blogID, 2)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), deleted)
 
-	beforeCount, _ := repo.CountByBlogID(ctx, blogID)
-	require.NoError(t, repo.DeleteOldest(ctx, blogID))
-	afterCount, _ := repo.CountByBlogID(ctx, blogID)
-	assert.Equal(t, beforeCount-1, afterCount)
+	count, err := repo.CountByBlogID(ctx, blogID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+	for i, u := range urls {
+		got, err := repo.FindByURL(ctx, u)
+		require.NoError(t, err)
+		if i < 2 {
+			assert.NotNil(t, got, "新しい2件は残る: %s", u)
+		} else {
+			assert.Nil(t, got, "古い記事と公開日時 NULL の記事は削除される: %s", u)
+		}
+	}
 }
