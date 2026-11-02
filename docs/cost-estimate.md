@@ -36,10 +36,10 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 
 ### Cloud Scheduler
 
-5ジョブ設定（無料枠は3ジョブ/月まで、以降 $0.10/ジョブ/月）。
+3ジョブ構成（gather / indexer / syncer）。無料枠（3ジョブ/月）以内に収まるため追加課金なし。
 
-- (5 − 3) × $0.10 = **$0.20/月**
-- 実行頻度に関わらずジョブが存在する限り課金されるため、一時停止中も同額発生していた。
+- **$0/月**
+- 以前は discovery / indexer / syncer / historical / recent の5ジョブで $0.20/月 発生していたが、gather への統合で無料枠内に収まるようになった。
 
 ### OpenAI Embeddings API（`text-embedding-3-small`, $0.02 / 1M tokens）
 
@@ -65,8 +65,8 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 
 ### Neon（PostgreSQL + pgvector）
 
-- ストレージ概算: `embedding vector(1536)` は1レコードあたり約6KB。22,509記事 → 埋め込みデータのみで約138MB、インデックス（IVFFlat）や他カラムを含めると **概算300〜350MB**
-- Neon Free Plan のストレージ上限（プランにより変動、要確認）に近づきつつあるため、記事数の増加ペースを監視推奨
+- ストレージ実測（2026-11-02、`evalsearch dbcheck`）: DB 全体 **478MB**（`articles` 26,535件。うち `embedding vector(1536)` の TOAST 213MB、IVFFlat 索引 208MB）。Neon Free Plan の上限に近い
+- `006_articles_embedding_halfvec` で `halfvec(512)` に変換し IVFFlat を削除した後は **100MB 前後**の見込み（未実測。適用後に `dbcheck` で確認する）
 - コンピュート時間（起動中の接続時間）による課金は本ドキュメントでは未計測。Neon Dashboard の Usage タブで確認すること
 
 ### Firebase Hosting
@@ -81,11 +81,11 @@ Cloud Run の無料枠（月 180,000 vCPU秒 / 360,000 GiB秒、プロジェク�
 | 項目 | 月額目安 |
 | ---- | -------- |
 | Cloud Run Jobs（クローラー） | $0（無料枠内） |
-| Cloud Scheduler | $0.20 |
+| Cloud Scheduler | $0（無料枠3ジョブ以内） |
 | OpenAI Embeddings API | $0.01未満 |
 | Cloud Run（APIサーバー） | $0（無料枠内、要トラフィック確認） |
-| Neon（PostgreSQL） | 未確認（ストレージ300〜350MB、無料枠に近い可能性） |
+| Neon（PostgreSQL） | 未確認（ストレージ 478MB → halfvec 移行後 100MB 前後の見込み） |
 | Firebase Hosting | $0 |
 | **合計** | **概ね $0.2〜1/月**（Neon・APIトラフィックが無料枠を超えない前提） |
 
-クローラーを週1回にしたことで、GCPの計算コスト自体はもともと無料枠内だったため大きくは変わらないが、**Neonへの書き込み量とOpenAI APIの呼び出し頻度が下がる**ことで、データ増加ペース・API課金の両方を抑えられる。
+クローラーを週1回にしたことで、GCPの計算コスト自体はもともと無料枠内だったため大きくは変わらないが、**Neonへの書き込み量とOpenAI APIの呼び出し頻度が下がる**ことで、データ増加ペース・API課金の両方を抑えられる。またdiscovery/historical/recentをgatherに統合したことでCloud Schedulerが無料枠（3ジョブ）に収まり、$0.20/月の削減になった。

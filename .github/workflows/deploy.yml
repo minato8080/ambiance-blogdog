@@ -48,7 +48,8 @@ jobs:
 
       - name: Update crawler Cloud Run Jobs
         run: |
-          for phase in discovery indexer syncer historical recent; do
+          # Embedding を書き込む indexer / syncer を先に更新する（gather が未作成でも API と同じ版にそろえるため）
+          for phase in indexer syncer gather; do
             gcloud run jobs update blogdog-crawler-${phase} \
               --image=${{ env.REGISTRY }}/crawler:${{ github.sha }} \
               --region=${{ env.REGION }} \

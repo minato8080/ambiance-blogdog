@@ -108,11 +108,11 @@
 クローラーを週1回稼働に変更した際、Cloud Scheduler の無料枠（3ジョブ/月）に収めるため、discovery/historical/recentを1つの`gather`フェーズに統合し、Cloud Run Jobs / Cloud Scheduler を5本→3本（gather/indexer/syncer）に削減する。
 
 - [x] `cmd/crawler/main.go` に `CRAWLER_PHASE=gather`（discovery→historical→recentを順次実行、エラーは`errors.Join`でまとめて返す）を追加
-- [ ] `go build ./...` をWSLで検証（Windows側にgoコマンドが無く未検証）
-- [ ] `.github/workflows/deploy.yml` の crawler Jobs 更新ループを `discovery indexer syncer historical recent` → `gather indexer syncer` に変更
-- [ ] `docs/operations.md` の全停止・再開・個別操作コマンドのジョブ名一覧を `gather indexer syncer` に変更
-- [ ] `docs/design-infrastructure.md` / `docs/design-function-crawler.md` を3グループ構成（gather=discovery+historical+recent統合）に書き直す
-- [ ] `docs/cost-estimate.md` のCloud Scheduler試算を3ジョブ($0/月、無料枠内)に更新
+- [x] `go build ./...` をWSLで検証（Windows側にgoコマンドが無く未検証）
+- [x] `.github/workflows/deploy.yml` の crawler Jobs 更新ループを `discovery indexer syncer historical recent` → `gather indexer syncer` に変更
+- [x] `docs/operations.md` の全停止・再開・個別操作コマンドのジョブ名一覧を `gather indexer syncer` に変更
+- [x] `docs/design-infrastructure.md` / `docs/design-function-crawler.md` を3グループ構成（gather=discovery+historical+recent統合）に書き直す
+- [x] `docs/cost-estimate.md` のCloud Scheduler試算を3ジョブ($0/月、無料枠内)に更新
 - [ ] GCPインフラ移行（**破壊的操作あり・要事前確認**）
   - [ ] 新コードをmasterにデプロイしてイメージ反映
   - [ ] `blogdog-crawler-gather` Cloud Run Job作成（1vCPU/512Mi/timeout600s、既存ジョブと同じenv構成）
@@ -120,3 +120,20 @@
   - [ ] `blogdog-crawler-gather` を手動実行して動作確認
   - [ ] 問題なければ `blogdog-crawler-discovery` / `blogdog-crawler-historical` / `blogdog-crawler-recent` のCloud Run Jobs・Cloud Schedulerを削除
   - [ ] `gcloud scheduler jobs list` で最終的に3ジョブ(gather/indexer/syncer)になっていることを確認
+
+## 11. Embedding の halfvec(512) 化（ストレージ削減）
+
+`articles` の容量の約9割が `embedding vector(1536)` と IVFFlat 索引だったため、`halfvec(512)` に変換して索引を削除する。評価方法と結果は `docs/evaluation.md`、設計は `docs/design-database.md` の「Embedding の次元変更」を参照。
+
+- [x] 評価ツール `cmd/evalsearch` を作成し、本番データで計測（DB 478MB、IVFFlat の recall@10 0.16、halfvec(512) の recall@10 0.739・類似度保持率 0.990）
+- [x] マイグレーション `006_articles_embedding_halfvec` を作成（変換＋IVFFlat 削除）
+- [x] Embedding 生成で `dimensions=512` を指定、リポジトリを `pgvector.HalfVector` に変更
+- [x] ローカル DB（pgvector 0.8.0 / PostgreSQL 17、本番規模の合成データ 26,500件）でマイグレーションと検索を検証
+  - `articles` 474MB → 39MB、006 の適用は約2秒
+  - 検索は全件比較でサーバー側 約35ms（ローカル計測。Neon のコンピュートでは要再計測）、Go で計算した正解との一致率 1.000
+  - 512次元の Upsert / FindByURL / FindRandom、embedding が NULL の Upsert、down → up を確認。1536次元の書き込みは `expected 512 dimensions` エラーになる
+- [ ] 本番適用前に Neon のバックアップ用ブランチを作成（**要事前確認**）
+- [ ] master へデプロイ（API 起動時にマイグレーションが走る。API とクローラーのイメージは同時に更新する）
+- [ ] 適用後に `evalsearch dbcheck` で容量とレイテンシを確認
+- [ ] 文体特徴量の並べ替え（alpha=0.9 候補）を `evalsearch blind` で目視評価してから導入を判断
+- [ ] syncer が FIFO 削除をしない問題（1ブログ最大10件、5件超過 407 ブログ）を修正

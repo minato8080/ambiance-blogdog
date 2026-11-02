@@ -19,7 +19,7 @@
 | パラメータ | 型     | 必須 | 説明                                |
 | ---------- | ------ | ---- | ----------------------------------- |
 | `url`      | string | ✅   | 類似記事を探したい対象記事のURL     |
-| `limit`    | int    | ❌   | 返却件数（デフォルト: 10、最大: 20） |
+| `limit`    | int    | ❌   | 返却件数（デフォルト: 10、最大: 20。20 を超える値は 20 に丸める。1 未満・非整数は 400） |
 
 ### 処理フロー
 
@@ -28,9 +28,12 @@
 2. DBにインデックス済みか確認
    a. インデックス済み: 既存のEmbeddingを使用
    b. 未登録: 記事URLをフェッチ → HTMLパース → Embedding生成 → DBにUPSERT
-3. pgvectorでコサイン類似度検索（対象記事自身を除外）
+      （ブログが未登録なら blogs に status=pending で登録）
+3. pgvectorでコサイン類似度検索（対象記事自身と同一ブログの記事を除外）。ベクトル索引は使わず全件比較
 4. limit件数でレスポンスを返却
 ```
+
+> 未登録記事の Embedding 入力は `<title>` + 本文先頭 `EMBED_MAX_CHARS` 文字（詳細は `design-function-crawler.md` の「Embedding の入力テキスト」）。
 
 > オンデマンドで解析するため、未登録記事でも類似記事を返せる。
 > UPSERTにより、次回以降は既存Embeddingを再利用して高速に応答する。
@@ -41,12 +44,16 @@
 {
   "source": {
     "url": "https://example.hatenablog.com/entry/2024/01/01/post1",
-    "title": "Goで始めるWebAPI開発"
+    "title": "Goで始めるWebAPI開発",
+    "blog_url": "https://example.hatenablog.com",
+    "blog_name": "Example Blog"
   },
   "similar_articles": [
     {
-      "url": "https://example.hatenablog.com/entry/2024/02/01/post2",
+      "url": "https://another.hatenablog.com/entry/2024/02/01/post2",
       "title": "GoのHTTPハンドラ設計パターン",
+      "blog_url": "https://another.hatenablog.com",
+      "blog_name": "Another Blog",
       "published_at": "2024-02-01T10:00:00+09:00",
       "tags": ["Go", "API"],
       "similarity": 0.91
@@ -56,12 +63,15 @@
 }
 ```
 
+> `blog_url` / `blog_name` / `published_at` は値が無い場合は省略される。`source.blog_url` は記事URLのスキーム+ホスト。
+
 ### エラーレスポンス
 
 | HTTPステータス | コード                  | 説明                                |
 | -------------- | ----------------------- | ----------------------------------- |
 | 400            | `INVALID_PARAMS`        | パラメータ不正                      |
 | 422            | `ARTICLE_FETCH_FAILED`  | 対象記事URLのフェッチ・パースに失敗 |
+| 500            | `INTERNAL_ERROR`        | 類似記事検索（DB）に失敗            |
 | 503            | `EMBEDDING_UNAVAILABLE` | Embedding API呼び出し失敗           |
 
 ---
@@ -80,7 +90,7 @@
 
 ```
 1. embedding を持つ記事からランダムに1件取得
-2. pgvector でコサイン類似度検索（対象記事自身・同一ブログを除外）
+2. pgvector でコサイン類似度検索（対象記事自身・同一ブログを除外、全件比較）
 3. source + similar_articles を返却
 ```
 
