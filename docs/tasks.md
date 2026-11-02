@@ -147,5 +147,7 @@
 - [x] ローカル（本番と同じ件数・行サイズの合成データ）で検証: 検索のサーバー側実行時間 約180〜220ms → 約26〜29ms、結果は変更前と同じ。007 の適用は数秒、down → up も確認
 - [x] 記事数上限（FIFO）を indexer / syncer の両方でブログ処理の最後に適用（`ArticleRepository.TrimToNewest`）。syncer が上限を超えて記事を残していた問題を修正
 - [x] `evalsearch dbcheck` が本番と同じ SQL（`repository.SearchSimilarSQL`）で計測するように変更
-- [ ] master へデプロイし、`evalsearch dbcheck` で容量と実行時間を確認
-- [ ] Deploy の Firebase Hosting が 403（`serviceusage.services.get` 権限なし）で失敗する問題に対応（サービスアカウントに Service Usage Consumer を付与するか、`firebase-tools` のバージョンを固定）
+- [x] master へデプロイ（2026-11-02、PR #3 → develop、PR #4 → master、run 41434664308。API リビジョン `blogdog-api-00013-d86`）。`/random` の応答（日本からのクライアント計測）は約0.40〜0.46秒 → 約0.30〜0.34秒
+- [ ] `evalsearch dbcheck` で本番の容量と実行時間を確認
+- [x] Deploy の Firebase Hosting が 403（`serviceusage.services.get` 権限なし）で失敗する問題に対応: `firebase-tools@15.26.0`（最後に成功した版）に固定
+- [ ] 固定後の master デプロイで Firebase Hosting の手順が成功することを確認
