@@ -114,8 +114,8 @@
 - [x] `docs/design-infrastructure.md` / `docs/design-function-crawler.md` を3グループ構成（gather=discovery+historical+recent統合）に書き直す
 - [x] `docs/cost-estimate.md` のCloud Scheduler試算を3ジョブ($0/月、無料枠内)に更新
 - [ ] GCPインフラ移行（**破壊的操作あり・要事前確認**）
-  - [ ] 新コードをmasterにデプロイしてイメージ反映
-  - [ ] `blogdog-crawler-gather` Cloud Run Job作成（1vCPU/512Mi/timeout600s、既存ジョブと同じenv構成）
+  - [x] 新コードをmasterにデプロイしてイメージ反映（2026-11-02、run 41429160334）
+  - [x] `blogdog-crawler-gather` Cloud Run Job作成（2026-11-02 のデプロイでイメージ更新に成功したことで存在を確認。設定内容は未確認）
   - [ ] `blogdog-crawler-gather` 用 Cloud Scheduler（毎週日曜3:00 JST）作成
   - [ ] `blogdog-crawler-gather` を手動実行して動作確認
   - [ ] 問題なければ `blogdog-crawler-discovery` / `blogdog-crawler-historical` / `blogdog-crawler-recent` のCloud Run Jobs・Cloud Schedulerを削除
@@ -132,8 +132,20 @@
   - `articles` 474MB → 39MB、006 の適用は約2秒
   - 検索は全件比較でサーバー側 約35ms（ローカル計測。Neon のコンピュートでは要再計測）、Go で計算した正解との一致率 1.000
   - 512次元の Upsert / FindByURL / FindRandom、embedding が NULL の Upsert、down → up を確認。1536次元の書き込みは `expected 512 dimensions` エラーになる
-- [ ] 本番適用前に Neon のバックアップ用ブランチを作成（**要事前確認**）
-- [ ] master へデプロイ（API 起動時にマイグレーションが走る。API とクローラーのイメージは同時に更新する）
-- [ ] 適用後に `evalsearch dbcheck` で容量とレイテンシを確認
+- [x] 本番適用前にバックアップを取得（`articles` の pg_dump、2026-11-02）
+- [x] master へデプロイ（2026-11-02、PR #1 → develop、PR #2 → master、run 41429160334。API リビジョン `blogdog-api-00012-kcc`、indexer / syncer / gather のイメージ更新）
+- [x] 適用後に `evalsearch dbcheck` で容量とレイテンシを確認（DB 478MB → 77MB、recall@10 1.000、サーバー側 約95ms）
 - [ ] 文体特徴量の並べ替え（alpha=0.9 候補）を `evalsearch blind` で目視評価してから導入を判断
-- [ ] syncer が FIFO 削除をしない問題（1ブログ最大10件、5件超過 407 ブログ）を修正
+
+## 12. 類似検索の高速化と記事数上限の修正
+
+006 適用後の本番 EXPLAIN で、全件比較のたびに TOAST 上の embedding を読んでいた（26,530 行で約10万バッファ参照）。設計は `docs/design-database.md` の「Embedding の行内保存と検索 SQL」を参照。
+
+- [x] マイグレーション `007_articles_embedding_storage_main`（embedding を STORAGE MAIN にしてテーブルを作り直す）
+- [x] `SearchSimilar` の SQL を、距離を1回だけ計算し、blogs との結合を上位件数に絞った後に行う形に変更
+- [x] `FindRandom` を、id だけで並べ替えて選び、主キーで全列を取得する形に変更
+- [x] ローカル（本番と同じ件数・行サイズの合成データ）で検証: 検索のサーバー側実行時間 約180〜220ms → 約26〜29ms、結果は変更前と同じ。007 の適用は数秒、down → up も確認
+- [x] 記事数上限（FIFO）を indexer / syncer の両方でブログ処理の最後に適用（`ArticleRepository.TrimToNewest`）。syncer が上限を超えて記事を残していた問題を修正
+- [x] `evalsearch dbcheck` が本番と同じ SQL（`repository.SearchSimilarSQL`）で計測するように変更
+- [ ] master へデプロイし、`evalsearch dbcheck` で容量と実行時間を確認
+- [ ] Deploy の Firebase Hosting が 403（`serviceusage.services.get` 権限なし）で失敗する問題に対応（サービスアカウントに Service Usage Consumer を付与するか、`firebase-tools` のバージョンを固定）

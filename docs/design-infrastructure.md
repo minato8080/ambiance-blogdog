@@ -70,6 +70,7 @@ ambiance-blogdog/
 │   ├── 004_articles_fk_cascade.{up,down}.sql
 │   ├── 005_create_crawler_keywords.{up,down}.sql
 │   ├── 006_articles_embedding_halfvec.{up,down}.sql  # embedding を halfvec(512) に変換、IVFFlat 削除
+│   ├── 007_articles_embedding_storage_main.{up,down}.sql  # embedding を行内保存（STORAGE MAIN）に変更
 │   └── embed.go
 ├── public/                           # Firebase Hosting デプロイ対象
 │   ├── admin.html                    # 管理画面
@@ -149,7 +150,7 @@ ambiance-blogdog/
     - `blogdog-crawler-gather` — 毎週日曜 3:00 JST（discovery → historical → recent を順次実行）
     - `blogdog-crawler-indexer` — 毎週日曜 4:00 JST
     - `blogdog-crawler-syncer` — 毎週日曜 5:00 JST
-    - GCP 側の移行（`blogdog-crawler-gather` の作成と旧 discovery / historical / recent ジョブの削除）は未完了（`docs/tasks.md` §10）
+    - `blogdog-crawler-gather` は作成済み（2026-11-02 のデプロイで確認）。スケジューラーと旧 discovery / historical / recent ジョブの整理状況は未確認（`docs/tasks.md` §10）
   - Cloud Scheduler — 各ジョブのトリガー（`CRAWLER_PHASE` 環境変数でフェーズ選択）。無料枠3ジョブ以内に収まる。運用コマンドは `docs/operations.md` を参照
   - Neon — PostgreSQL + pgvector（無料枠）
 
@@ -166,4 +167,5 @@ ambiance-blogdog/
   3. 全クローラー Jobs のイメージを更新
   4. Cloud Run の URL を取得して `public/config.js` を生成
   5. Firebase Hosting にデプロイ
+- 既知の問題: 2026-11-02 の実行で Firebase Hosting のデプロイが 403（`serviceusage.services.get` 権限なし）で失敗した。`npx firebase-tools` がバージョン未固定で、新しい版が Service Usage API を確認するようになったためと考えられる（`docs/tasks.md` §12）
 - 必要な GitHub Secrets: `GCP_SA_KEY`（サービスアカウントJSONのbase64）
